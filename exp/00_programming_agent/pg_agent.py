@@ -31,8 +31,9 @@ class AgentState(TypedDict):
 python_repl_tool = PythonREPLTool()
 tools = [python_repl_tool]
 
-# Initialize the LLM with strict temperature for coding
+# Initialize the LLMs with strict temperature
 llm = ChatOpenAI(model="gpt-4o", temperature=0)
+validator_llm = ChatOpenAI(model="gpt-4o", temperature=0)
 
 # Bind the tools to the LLM. 
 # This injects the tool's schema into the LLM, allowing the LLM to know
@@ -113,29 +114,34 @@ def _validate_json_response(text: str) -> tuple[bool, dict | None, str]:
     return True, data, ""
 
 
-def validate_node(state: AgentState):
+def validate_agent_node(state: AgentState):
     last_message = state["messages"][-1]
-    is_valid, _, error_message = _validate_json_response(last_message.content or "")
-    if is_valid:
-        return {"messages": []}
-    correction_prompt = HumanMessage(content=(
-        "Fix the response to be valid JSON only. "
-        "It must match exactly this schema:\n"
+    validator_prompt = SystemMessage(content=(
+        "You are a strict JSON validator. "
+        "Check whether the last assistant message is valid JSON with exactly these keys: "
+        "message (string), is_error (boolean), error_message (string). "
+        "If is_error is false, error_message must be empty. "
+        "If is_error is true, error_message must be non-empty. "
+        "Respond ONLY with JSON string withno markdown in this schema:\n"
         "{\n"
-        "  \"message\": string,\n"
-        "  \"is_error\": boolean,\n"
+        "  \"valid\": boolean,\n"
         "  \"error_message\": string\n"
         "}\n"
-        "Do not add any extra keys or text.\n"
-        f"Error: {error_message}"
+        "Do not include any other text."
     ))
-    return {"messages": [correction_prompt]}
+    response = validator_llm.invoke([validator_prompt, HumanMessage(content=last_message.content or "")])
+    return {"messages": [response]}
 
 
 def should_retry(state: AgentState) -> str:
     last_message = state["messages"][-1]
-    is_valid, _, _ = _validate_json_response(last_message.content or "")
-    return "end" if is_valid else "retry"
+    try:
+        decision = json.loads(last_message.content or "")
+    except json.JSONDecodeError:
+        return "retry"
+    if isinstance(decision, dict) and decision.get("valid") is True:
+        return "end"
+    return "retry"
 
 # ==========================================
 # 5. Build and Compile the Graph
@@ -146,7 +152,7 @@ workflow = StateGraph(AgentState)
 # Add our two nodes to the graph
 workflow.add_node("agent", agent_node)
 workflow.add_node("tools", tool_node)
-workflow.add_node("validate", validate_node)
+workflow.add_node("validate", validate_agent_node)
 
 # Set the entry point: the graph always starts at the reasoning agent
 workflow.add_edge(START, "agent")
@@ -205,6 +211,8 @@ def run_custom_react_agent(user_query: str):
                     if is_valid:
                         final_json = data
                     print(f"Final Answer:\n{latest_message.content}")
+            elif node_name == "validate":
+                print(f"Validator Decision:\n{latest_message.content}")
             
             elif node_name == "tools":
                 print(f"Observation (Execution Output):\n{latest_message.content}")
