@@ -1,0 +1,113 @@
+{
+    'messages': [
+        HumanMessage(
+            content='Write a program to sort 100 numbers and show me the code',
+            additional_kwargs={},
+            response_metadata={},
+            id='96b701d0-1b6a-4072-9f65-7551db6bf533'
+        ),
+        AIMessage(
+            content="Here's a Python program that generates 100 random numbers, sorts them, and prints the sorted list:\n\n```python\nimport random\n\n# Generate 100 random numbers\nnumbers = [random.randint(1, 1000) for _ in range(100)]\n\n# Sort the numbers\nsorted_numbers = sorted(numbers)\n\n# Print the sorted numbers\nprint(sorted_numbers)\n```\n\nLet's execute this code to see the sorted numbers.",
+            additional_kwargs={'refusal': None},
+            response_metadata={
+                'token_usage': {
+                    'completion_tokens': 157,
+                    'prompt_tokens': 162,
+                    'total_tokens': 319,
+                    'completion_tokens_details': {
+                        'accepted_prediction_tokens': 0,
+                        'audio_tokens': 0,
+                        'reasoning_tokens': 0,
+                        'rejected_prediction_tokens': 0
+                    },
+                    'prompt_tokens_details': {
+                        'audio_tokens': 0,
+                        'cached_tokens': 0
+                    }
+                },
+                'model_provider': 'openai',
+                'model_name': 'gpt-4o-2024-08-06',
+                'system_fingerprint': 'fp_9860921a69',
+                'id': 'chatcmpl-DSXWn4rVZpPOL6olDZhgD7pUB1qv0',
+                'service_tier': 'default',
+                'finish_reason': 'tool_calls',
+                'logprobs': None
+            },
+            id='lc_run--019d6fa2-dca9-76f1-a421-d7c71d06d455-0',
+            tool_calls=[
+                {
+                    'name': 'Python_REPL',
+                    'args': {
+                        'query': 'import random\n\n# Generate 100 random numbers\nnumbers = [random.randint(1, 1000) for _ in range(100)]\n\n# Sort the numbers\nsorted_numbers = sorted(numbers)\n\n# Print the sorted numbers\nprint(sorted_numbers)'
+                    },
+                    'id': 'call_HBmXqBgQgbQy7byheuIJwMzz',
+                    'type': 'tool_call'
+                }
+            ],
+            invalid_tool_calls=[],
+            usage_metadata={
+                'input_tokens': 162,
+                'output_tokens': 157,
+                'total_tokens': 319,
+                'input_token_details': {
+                    'audio': 0, 
+                    'cache_read': 0
+                },
+                'output_token_details': {
+                    'audio': 0, 
+                    'reasoning': 0
+                }
+            }
+        ),
+        ToolMessage(
+            content='[2, 7, 29, 34, 37, 38, 41, 49, 80, 84, 94, 99, 107, 112, 115, 118, 120, 143, 182, 184, 190, 223, 230, 236, 237, 246, 252, 259, 259, 280, 283, 284, 291, 300, 302, 314, 317, 326, 334, 335, 355, 417, 420, 448, 462, 462, 474, 477, 492, 507, 514, 515, 520, 539, 550, 569, 575, 594, 600, 604, 615, 622, 639, 639, 652, 661, 664, 708, 710, 714, 719, 726, 773, 774, 784, 786, 803, 805, 819, 821, 824, 825, 851, 856, 891, 893, 897, 907, 915, 917, 926, 927, 927, 938, 942, 990, 991, 992, 994, 997]\n',
+            name='Python_REPL',
+            id='b96682ec-a30d-4d89-a1df-6831a2ab313e',
+            tool_call_id='call_HBmXqBgQgbQy7byheuIJwMzz'
+        ),
+        AIMessage(
+            content='The program successfully generated and sorted 100 random numbers. Here is the sorted list:\n\n```\n\n```\n\nThis code generates random numbers between 1 and 1000 and sorts them in ascending order.',
+            additional_kwargs={'refusal': None},
+            response_metadata={
+                'token_usage': {
+                    'completion_tokens': 341,
+                    'prompt_tokens': 631,
+                    'total_tokens': 972,
+                    'completion_tokens_details': {
+                        'accepted_prediction_tokens': 0,
+                        'audio_tokens': 0,
+                        'reasoning_tokens': 0,
+                        'rejected_prediction_tokens': 0
+                    },
+                    'prompt_tokens_details': {
+                        'audio_tokens': 0,
+                        'cached_tokens': 0
+                    }
+                },
+                'model_provider': 'openai',
+                'model_name': 'gpt-4o-2024-08-06',
+                'system_fingerprint': 'fp_8706f899b3',
+                'id': 'chatcmpl-DSXWpjfwIrw2eSkDdH6JAZycYYfQ1',
+                'service_tier': 'default',
+                'finish_reason': 'stop',
+                'logprobs': None
+            },
+            id='lc_run--019d6fa2-e4c5-78b0-800d-3b26abd024a7-0',
+            tool_calls=[],
+            invalid_tool_calls=[],
+            usage_metadata={
+                'input_tokens': 631,
+                'output_tokens': 341,
+                'total_tokens': 972,
+                'input_token_details': {
+                    'audio': 0, 
+                    'cache_read': 0
+                },
+                'output_token_details': {
+                    'audio': 0, 
+                    'reasoning': 0
+                }
+            }
+        )
+    ]
+}
