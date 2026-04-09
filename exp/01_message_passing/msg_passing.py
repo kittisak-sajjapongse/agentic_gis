@@ -180,5 +180,6 @@ def run_multi_agent(user_request: str, output_dir: Path) -> Path | None:
 
 if __name__ == "__main__":
     # request = "Create a single-page HTML for a minimalist cafe landing page."
-    request = "Create a basic SQL tutorial and challenges page that looks catchy and colorful to attract teens"
-    run_multi_agent(request, Path("exp/01_message_passing/output"))
+    # request = "Create a basic SQL tutorial and challenges page that looks catchy and colorful to attract teens"
+    request = "Create a page that looks sleek, modern, and elegant for a top-roof cafe on a tall building that sells coffee and cakes"
+    run_multi_agent(request, Path("output"))
