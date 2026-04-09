@@ -1,4 +1,5 @@
 import copy
+import json
 from typing import Annotated
 from typing_extensions import TypedDict
 
@@ -53,7 +54,11 @@ def agent_node(state: AgentState):
         "1. Write Python code to solve the request. "
         "2. ALWAYS execute the code using the python_repl_ast tool. "
         "3. Check for errors. If there's an error, write a fix and execute again. "
-        "4. Return the final answer based on the execution result."
+        "4. Return the final answer based on the execution result.\n"
+        "Your final answer MUST be a single JSON string with no markdown with exactly these keys: "
+        "message (string), is_error (boolean), error_message (string). "
+        "If is_error is false, error_message must be an empty string. "
+        "If is_error is true, provide a clear reason in error_message."
     ))
     
     # Prepend the system prompt to the existing conversation history
@@ -80,18 +85,57 @@ def should_continue(state: AgentState) -> str:
     This function acts as a traffic director after the agent_node runs.
     It checks the very last message in the state.
     """
-    print("="*80)
-    print(state)
-    print("="*80)
     last_message = state["messages"][-1]
     
     # If the LLM decided to call a tool, route to the "tools" node.
     if last_message.tool_calls:
         return "continue"
     
-    # If there are no tool calls, it means the LLM provided a final text answer.
-    # Route to END to finish the execution graph.
-    return "end"
+    # If there are no tool calls, validate the final JSON response.
+    return "validate"
+
+
+def _validate_json_response(text: str) -> tuple[bool, dict | None, str]:
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        return False, None, f"Invalid JSON: {exc}"
+    required = {"message": str, "is_error": bool, "error_message": str}
+    for key, expected_type in required.items():
+        if key not in data:
+            return False, None, f"Missing key: {key}"
+        if not isinstance(data[key], expected_type):
+            return False, None, f"Invalid type for {key}"
+    if data["is_error"] is False and data["error_message"]:
+        return False, None, "error_message must be empty when is_error is false"
+    if data["is_error"] is True and not data["error_message"]:
+        return False, None, "error_message must be non-empty when is_error is true"
+    return True, data, ""
+
+
+def validate_node(state: AgentState):
+    last_message = state["messages"][-1]
+    is_valid, _, error_message = _validate_json_response(last_message.content or "")
+    if is_valid:
+        return {"messages": []}
+    correction_prompt = HumanMessage(content=(
+        "Fix the response to be valid JSON only. "
+        "It must match exactly this schema:\n"
+        "{\n"
+        "  \"message\": string,\n"
+        "  \"is_error\": boolean,\n"
+        "  \"error_message\": string\n"
+        "}\n"
+        "Do not add any extra keys or text.\n"
+        f"Error: {error_message}"
+    ))
+    return {"messages": [correction_prompt]}
+
+
+def should_retry(state: AgentState) -> str:
+    last_message = state["messages"][-1]
+    is_valid, _, _ = _validate_json_response(last_message.content or "")
+    return "end" if is_valid else "retry"
 
 # ==========================================
 # 5. Build and Compile the Graph
@@ -102,6 +146,7 @@ workflow = StateGraph(AgentState)
 # Add our two nodes to the graph
 workflow.add_node("agent", agent_node)
 workflow.add_node("tools", tool_node)
+workflow.add_node("validate", validate_node)
 
 # Set the entry point: the graph always starts at the reasoning agent
 workflow.add_edge(START, "agent")
@@ -111,14 +156,22 @@ workflow.add_conditional_edges(
     "agent",
     should_continue,
     {
-        "continue": "tools", # If the LLM called a tool, go to 'tools'
-        "end": END           # Otherwise, end the loop
+        "continue": "tools",    # If the LLM called a tool, go to 'tools'
+        "validate": "validate"  # Otherwise, validate JSON output
     }
 )
 
 # Add a normal edge: After tools execute, ALWAYS loop back to the 'agent'
 # so the LLM can observe the output and decide what to do next (Reason).
 workflow.add_edge("tools", "agent")
+workflow.add_conditional_edges(
+    "validate",
+    should_retry,
+    {
+        "retry": "agent",
+        "end": END,
+    },
+)
 
 # Compile the graph into an executable application
 react_graph = workflow.compile()
@@ -133,21 +186,35 @@ def run_custom_react_agent(user_query: str):
     initial_state = {"messages": [HumanMessage(content=user_query)]}
     
     # Stream the state updates as the graph executes
+    final_json = None
     for event in react_graph.stream(initial_state):
         for node_name, node_state in event.items():
             print(f"\n>>> Step executed by node: [{node_name.upper()}] <<<")
+            print("="*80)
+            print(node_state)
+            print("="*80)
+            if not node_state.get("messages"):
+                continue
             latest_message = node_state["messages"][-1]
             
             if node_name == "agent":
                 if latest_message.tool_calls:
                     print(f"Action: LLM requested tool '{latest_message.tool_calls[0]['name']}'")
                 else:
+                    is_valid, data, _ = _validate_json_response(latest_message.content or "")
+                    if is_valid:
+                        final_json = data
                     print(f"Final Answer:\n{latest_message.content}")
             
             elif node_name == "tools":
                 print(f"Observation (Execution Output):\n{latest_message.content}")
 
+    if final_json is not None:
+        print("\nFinal JSON Response:")
+        print(json.dumps(final_json, ensure_ascii=True))
+
 if __name__ == "__main__":
     # test_prompt = "Write a program to sort 100 numbers and show me the code"
-    test_prompt = "Create a shape file that contains a point exactly at Bangkok, Thailand (anywhere in Bangkok)"
+    # test_prompt = "Create a shape file that contains a point exactly at Bangkok, Thailand (anywhere in Bangkok)"
+    test_prompt = "ช่วยสร้างเลเยอร์ที่โชว์จุดสนามบินสุวรรณภูมืแล้ว export มาเป็น shape file"
     run_custom_react_agent(test_prompt)
