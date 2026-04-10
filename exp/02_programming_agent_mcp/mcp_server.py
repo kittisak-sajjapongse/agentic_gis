@@ -49,6 +49,7 @@ def _build_docker_command(
     ]
 
 
+# NOTE: FastMCP uses the function docstring as the tool description exposed to MCP clients/LLMs.
 @mcp.tool()
 def run_python(
     code: str,
@@ -92,6 +93,7 @@ def run_python(
     }
 
 
+# NOTE: FastMCP uses the function docstring as the tool description exposed to MCP clients/LLMs.
 @mcp.tool()
 def list_runs() -> str:
     """List run directories stored on the host mount."""
