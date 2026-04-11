@@ -3,9 +3,10 @@ import os
 import subprocess
 import tempfile
 import uuid
-from typing import List, Optional
+from typing import Annotated, List, Optional
 
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 
 MCP_NAME = "docker-python"
 MCP_HOST = os.getenv("MCP_HOST", "127.0.0.1")
@@ -50,12 +51,20 @@ def _build_docker_command(
 
 
 # NOTE: FastMCP uses the function docstring as the tool description exposed to MCP clients/LLMs.
+# NOTE: We keep the function signature while using Pydantic Field metadata via Annotated
+# so MCP exposes per-argument descriptions to the LLM without changing how tools are called.
 @mcp.tool()
 def run_python(
-    code: str,
-    requirements: Optional[List[str]] = None,
-    workdir: str = "/data",
-    timeout_s: int = DEFAULT_TIMEOUT_S,
+    code: Annotated[str, Field(description="Python source code to execute inside the container.")],
+    requirements: Annotated[
+        Optional[List[str]],
+        Field(description="Optional pip package names to install before execution."),
+    ] = None,
+    workdir: Annotated[
+        str,
+        Field(description="Container workdir where the host mount is available."),
+    ] = "/data",
+    timeout_s: Annotated[int, Field(description="Max execution time in seconds.")] = DEFAULT_TIMEOUT_S,
 ) -> dict:
     """Execute Python code inside a Docker container and return stdout/stderr."""
     run_id = uuid.uuid4().hex
