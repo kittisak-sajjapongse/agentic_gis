@@ -27,7 +27,22 @@ workflow.add_node(ir_agent.name, ir_agent)
 workflow.add_node(og_agent.name, og_agent)
 
 workflow.add_edge(START, MANAGEMENT_DEPARTMENT_NAME)
-workflow.add_edge(MANAGEMENT_DEPARTMENT_NAME, ir_agent.name)
+workflow.add_conditional_edges(
+    MANAGEMENT_DEPARTMENT_NAME,
+    lambda state: state["gis_related"],
+    {
+        True: ir_agent.name,
+        False: END
+    }
+)
+workflow.add_conditional_edges(
+    ir_agent.name,
+    lambda state: "STOP" if state["coder_summary"] is None else "CONTINUE",
+    {
+        "CONTINUE": og_agent.name,
+        "STOP": END
+    }
+)
 workflow.add_edge(ir_agent.name, og_agent.name)
 workflow.add_edge(og_agent.name, END)
 
