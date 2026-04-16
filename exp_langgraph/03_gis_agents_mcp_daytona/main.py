@@ -9,9 +9,9 @@ from MgmtAgent import ManagementAgent
 load_dotenv()
 
 
-# user_query = "How many hotspots are there in Thailand this year on the map?"
+user_query = "How many hotspots are there in Thailand this year on the map?"
 # user_query = "Please show me the hotspot layer in Thailand on the map"
-user_query = "How does a bird fly?"
+# user_query = "How does a bird fly?"
 
 workflow = StateGraph(IAgentState)
 
@@ -23,7 +23,7 @@ workflow.add_edge(mgmt.name, END)
 
 graph = workflow.compile()
 
-initial_state = {"_messages": [HumanMessage(content=user_query)]}
+initial_state = {"original_human_message": [HumanMessage(content=user_query)]}
 latest_state = None
 for event in graph.stream(initial_state):
     for node_name, node_state in event.items():

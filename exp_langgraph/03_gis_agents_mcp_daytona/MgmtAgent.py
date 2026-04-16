@@ -1,94 +1,9 @@
-from typing import List
 from langchain_core.language_models import BaseChatModel
-from langgraph.graph import StateGraph, START, END
-from langchain_openai import ChatOpenAI
 from AgentBase import AgentBase
 from IAgentState import IAgentState
 
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage
 
-from dotenv import load_dotenv
-load_dotenv()
-
-class MgmtState(IAgentState):
-    gis_features: List[str]
-    gis_tasks: List[str]
-    gis_related: bool
-
-    
-class FeatureExtractor(AgentBase[MgmtState]):
-    NAME = "MGMT_FeatureExtractor"
-
-    def __init__(self, llm: BaseChatModel, name: str = NAME):
-        super().__init__(llm, name)
-
-    def handleMessage(self, state: MgmtState) -> MgmtState:
-        system_prompt = SystemMessage(
-            content=(
-f"""
-    You are an expert in the area of Geography Information System (GIS).
-    Look for keywords of features that can be related to GIS.
-    You will respond in a JSON format only with the structure below:
-    {{"features": [<LIST_OF_KEYWORDS_AND_FEATURES]}}
-"""
-            )
-        )
-        messages = [system_prompt] + state["_messages"]
-        response = self._llm.invoke(messages)
-        print(response)
-        return {"_messages": [response]}
-    
-class TaskExtractor(AgentBase[MgmtState]):
-    NAME = "MGMT_TaskExtractor"
-
-    def __init__(self, llm: BaseChatModel, name: str = NAME):
-        super().__init__(llm, name)
-
-    def handleMessage(self, state: MgmtState) -> MgmtState:
-        return {}
-    
-class SummaryGenerator(AgentBase[MgmtState]):
-    NAME = "MGMT_SummaryGenerator"
-
-    def __init__(self, llm: BaseChatModel, name: str = NAME):
-        super().__init__(llm, name)
-
-    def handleMessage(self, state: MgmtState) -> MgmtState:
-        return {}
-
-def buildManagementDept():
-    workflow = StateGraph(IAgentState)
-
-    featureExtractor = FeatureExtractor(ChatOpenAI(model="gpt-4o", temperature=0))
-    taskExtractor = TaskExtractor(ChatOpenAI(model="gpt-4o", temperature=0))
-    summaryGenerator = SummaryGenerator(ChatOpenAI(model="gpt-4o", temperature=0))
-    workflow.add_node(featureExtractor.name, featureExtractor)
-    workflow.add_node(taskExtractor.name, taskExtractor)
-    workflow.add_node(summaryGenerator.name, summaryGenerator)
-
-    workflow.add_edge(START, featureExtractor.name)
-    workflow.add_edge(featureExtractor.name, taskExtractor.name)
-    workflow.add_edge(taskExtractor.name, summaryGenerator.name)
-    workflow.add_edge(summaryGenerator.name, END)
-
-    return workflow.compile()
-
-
-
-# user_query = "How many hotspots are there in Thailand this year on the map?"
-# user_query = "Please show me the hotspot layer in Thailand on the map"
-# user_query = "How does a bird fly?"
-
-# graph = buildManagementDept()
-
-# initial_state = {"_messages": [HumanMessage(content=user_query)]}
-# latest_state = None
-# for event in graph.stream(initial_state):
-#     for node_name, node_state in event.items():
-#         print(node_name)
-#         latest_state = node_state
-
-# print(latest_state)
 
 class ManagementAgent(AgentBase[IAgentState]):
     NAME = "Management"
@@ -141,6 +56,7 @@ Additional rules:
 """
             )
         )
-        messages = [system_prompt] + state["_messages"]
+        messages = [system_prompt] + state["original_human_message"]
         response = self._llm.invoke(messages)
-        return {"_messages": [response]}
+        _messages = state["original_human_message"] + [response]
+        return {"_messages": _messages}

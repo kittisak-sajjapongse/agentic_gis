@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 FILES="\
+    MgmtDept.py\
     MgmtAgent.py\
     IRAgent.py\
     OGAgent.py\
