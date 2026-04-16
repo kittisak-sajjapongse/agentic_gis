@@ -6,7 +6,7 @@ from langchain_openai import ChatOpenAI
 from AgentBase import AgentBase
 from IAgentState import IAgentState
 
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 from dotenv import load_dotenv
 from datetime import datetime, timezone
@@ -16,43 +16,13 @@ load_dotenv()
 
 class MgmtState(IAgentState):
     original_human_message: HumanMessage
+    response_to_user: AIMessage
+    gis_related: bool
+    user_language: str
     features: List[str]
-    valid_locations: List[Dict]
-    invalid_locations: List[Dict]
-    tasks: List[str]
-    related: bool
-
-
-class FeatureExtractor(AgentBase[MgmtState]):
-    NAME = "MGMT_FeatureExtractor"
-
-    def __init__(self, llm: BaseChatModel, name: str = NAME):
-        super().__init__(llm, name)
-
-    def handleMessage(self, state: MgmtState) -> MgmtState:
-        system_prompt = SystemMessage(
-            content=(
-                f"""
-    You are an expert in the area of Geography Information System (GIS).
-    Look for GIS features or artifacts the user mentioned that can be displayed on a map and are not locations.
-    You will respond in a JSON format only with the structure below:
-    {{"features": [<LIST_OF_KEYWORDS_AND_FEATURES]}}
-
-    Output requirements:
-    - Use English language
-    - Return valid JSON string only and no markdown.
-    - Do not include any explanation or text outside the JSON.
-    - Use exactly the given structure
-"""
-            )
-        )
-        messages = [system_prompt] + state["original_human_message"]
-        response = self._llm.invoke(messages)
-        _messages = state["original_human_message"] + [response]
-
-        # TODO: Handles error here
-        resp_js = json.loads(response.content)
-        return {"features": resp_js["features"], "_messages": _messages}
+    locations: List[Dict]
+    retriever_summary: str
+    coder_summary: str
 
 
 class LocationExtractor(AgentBase[MgmtState]):
@@ -61,33 +31,34 @@ class LocationExtractor(AgentBase[MgmtState]):
     def __init__(self, llm: BaseChatModel, name: str = NAME):
         super().__init__(llm, name)
 
-    def handleMessage(self, state: MgmtState) -> MgmtState:
+    def handleMessage(self, state: MgmtState) -> dict:
         system_prompt = SystemMessage(
             content=(
                 f"""
-    You are an expert in the area of Geography of the world.
+    You are an expert in the area of Geography Information System (GIS).
     Your task is to do the following:
-    1. Extract one or more locations from user's requests.
-    2. Verify if the locations physically exist
-    3. Determine what continents and what countries the locations are in
+    1. Determine the language the user uses
+    2. Extract GIS features or artifacts from user's request that can be displayed on a map and are not locations.
+    3. Extract one or more locations from user's requests.
+    4. Determine what continents and what countries the locations are in.
     
 
     You will respond in a JSON format only with the structure below:
     {{
-        "valid_locations": [
+        "user_language": <STRING>,
+        "features": [<LIST_OF_KEYWORDS_AND_FEATURES],
+        "locations": [
             {{
                 "continent": <STRING>,
                 "country": <STRING>,
                 "area_name": <STRING>,
             }}
-        ],
-        "invalid_locations": [
-            <LIST_OF_AREA_NAMES>
         ]
     }}
 
-    1. Put the continent, country, and user'specified area name in the field `continent`, `country`, and `area_name`, respectively in `valid_locations` if the locations physically exist
-    2. Put the user-specified area name in the list `invalid_locations` if the locations do not physically exist.
+    1. Put the continent, country, and user-specified area name in the field `continent`, `country`, and `area_name`, respectively in `locations`
+    2. Put `null` into the fields if you do not know for any user-specified area.
+    3. Do not populate `locations` if the user does not mention area.
 
     Output requirements:
     - Use English language
@@ -104,8 +75,9 @@ class LocationExtractor(AgentBase[MgmtState]):
         # TODO: Handles error here
         resp_js = json.loads(response.content)
         return {
-            "valid_locations": resp_js["valid_locations"],
-            "invalid_locations": resp_js["invalid_locations"],
+            "user_language": resp_js["user_language"],
+            "features": resp_js["features"],
+            "locations": resp_js["locations"],
             "_messages": _messages,
         }
 
@@ -116,7 +88,7 @@ class TaskExtractor(AgentBase[MgmtState]):
     def __init__(self, llm: BaseChatModel, name: str = NAME):
         super().__init__(llm, name)
 
-    def handleMessage(self, state: MgmtState) -> MgmtState:
+    def handleMessage(self, state: MgmtState) -> dict:
         current_utc_time = datetime.now(timezone.utc)
         current_dt = current_utc_time.strftime("%Y-%m-%d %H:%M:%S %Z")
         system_prompt = SystemMessage(
@@ -126,18 +98,20 @@ You are an expert technical manager specializing in Geospatial Information Syste
 Your role is to evaluate user requests and delegate tasks to your team.
 
 Your team consists of two specialists:
-1. GIS Layer Librarian ("retriever"): Retrieves specific vector or raster layers from a data collection.
+1. GIS Layer Librarian ("retriever"): Search and retrieves specific vector or raster layers from a data collection.
 2. GIS Python Coder ("coder"): Writes Python code using the retrieved layers as input to process data and produce output layers.
 
 Your task:
 1. Determine if the user's request is GIS-related and can be fulfilled by your team.
 2. If it is GIS-related, write highly specific task summaries for each specialist.
+3. If it is not GIS-related, write a response to the user why you cannot fulfil the request in {state["user_language"]}.
 
 Guidelines:
 - Specificity: Explicitly mention target areas, locations, features, artifacts, dates, and times in your instructions. 
 - Absolute Dates: The current date and time is {current_dt}. When writing your summaries, do NOT synthesize or use relative time terms (e.g., "yesterday", "last year", "recently"). Always write exact, absolute dates.
 - Empty Tasks: If a specialist has no work to do, set their summary to `null`.
-- Retrieval Only: If the task is just layer retrieval, instruct the coder to simply "pass the input layers directly to the output without modification."
+- Retrieval Only: If the task is just layer retrieval, set the summary for the coder to `null`"
+- Populate response to user with null if request is GIS-related
 
 Output Requirements:
 - Respond in English.
@@ -148,53 +122,45 @@ Output Requirements:
 {{
     "gis_related": <BOOLEAN>,
     "retriever": <NULL_OR_STRING>,
-    "coder": <NULL_OR_STRING>
+    "coder": <NULL_OR_STRING>,
+    "response_to_user": <STRING>
 }}
 """
             )
         )
         messages = [system_prompt] + state["original_human_message"]
         response = self._llm.invoke(messages)
-        _messages = state["original_human_message"] + [response]
-        print("="*80)
-        print(response)
-        print("="*80)
-        return {"_messages": _messages}
 
-
-class SummaryGenerator(AgentBase[MgmtState]):
-    NAME = "MGMT_SummaryGenerator"
-
-    def __init__(self, llm: BaseChatModel, name: str = NAME):
-        super().__init__(llm, name)
-
-    def handleMessage(self, state: MgmtState) -> MgmtState:
-        return state
+        # TODO: Handles error here
+        resp_js = json.loads(response.content)
+        _messages = [response]
+        return {
+            "gis_related": resp_js["gis_related"],
+            "retriever_summary": resp_js["retriever"],
+            "coder_summary": resp_js["coder"],
+            "response_to_user": resp_js["response_to_user"],
+            "_messages": _messages
+        }
 
 
 def buildManagementDept():
     workflow = StateGraph(MgmtState)
 
-    featureExtractor = FeatureExtractor(ChatOpenAI(model="gpt-4o-mini", temperature=0))
     locationExtractor = LocationExtractor(ChatOpenAI(model="gpt-4o-mini", temperature=0))
     taskExtractor = TaskExtractor(ChatOpenAI(model="gpt-4o", temperature=0))
-    summaryGenerator = SummaryGenerator(ChatOpenAI(model="gpt-4o", temperature=0))
-    workflow.add_node(featureExtractor.name, featureExtractor)
     workflow.add_node(locationExtractor.name, locationExtractor)
     workflow.add_node(taskExtractor.name, taskExtractor)
-    workflow.add_node(summaryGenerator.name, summaryGenerator)
 
-    workflow.add_edge(START, featureExtractor.name)
-    workflow.add_edge(featureExtractor.name, locationExtractor.name)
+    workflow.add_edge(START, locationExtractor.name)
     workflow.add_edge(locationExtractor.name, taskExtractor.name)
-    workflow.add_edge(taskExtractor.name, summaryGenerator.name)
-    workflow.add_edge(summaryGenerator.name, END)
+    workflow.add_edge(taskExtractor.name, END)
 
     return workflow.compile()
 
 
-user_query = "How many hotspots are there in Kanchanapisek this year on the map?"
+# user_query = "How many hotspots are there in Kanchanapisek this year on the map?"
 # user_query = "อุณหภูมิที่สัตหีบเป็นเท่าไร โชว์บนแผนที่ให้ดูหน่อย"
+user_query = "โชว์อุณหภูมิของสัตหีบบนแผนที่ให้ดูหน่อย"
 # user_query = "จากการดูแผนที่จะเห็นว่า เส้นลมจากเชียงใหม่พัดลงใต้เข้าสู่ภาคกลาง"
 # user_query = "เรามีแผนที่เส้นลมไหม"
 # user_query = "Please show me the hotspot layer in Thailand on the map"
@@ -204,10 +170,13 @@ graph = buildManagementDept()
 
 initial_state = {"original_human_message": [HumanMessage(content=user_query)]}
 latest_state = None
-for event in graph.stream(initial_state):
-    for node_name, node_state in event.items():
-        print(node_name)
-        latest_state = node_state
+# for event in graph.stream(initial_state):
+#     for node_name, node_state in event.items():
+#         print(node_name)
+#         latest_state = node_state
 
 import pprint
-pprint.pprint(latest_state)
+for state_snapshot in graph.stream(initial_state, stream_mode="values"):
+    pprint.pprint(state_snapshot)
+    print("="*80)
+    latest_state = state_snapshot

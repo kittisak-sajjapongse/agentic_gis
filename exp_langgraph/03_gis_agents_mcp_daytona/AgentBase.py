@@ -30,8 +30,8 @@ class AgentBase(ABC, Generic[TState]):
         self.name = name
 
     @abstractmethod
-    def handleMessage(self, state: TState) -> TState:
+    def handleMessage(self, state: TState) -> dict:
         raise NotImplementedError
 
-    def __call__(self, state: TState) -> TState:
+    def __call__(self, state: TState) -> dict:
         return self.handleMessage(state)
