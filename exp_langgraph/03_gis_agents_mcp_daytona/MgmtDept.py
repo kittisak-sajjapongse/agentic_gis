@@ -93,7 +93,7 @@ class TaskExtractor(AgentBase[MgmtState]):
         current_dt = current_utc_time.strftime("%Y-%m-%d %H:%M:%S %Z")
         system_prompt = SystemMessage(
             content=(
-f"""
+                f"""
 You are an expert technical manager specializing in Geospatial Information Systems (GIS).
 Your role is to evaluate user requests and delegate tasks to your team.
 
@@ -139,14 +139,16 @@ Output Requirements:
             "retriever_summary": resp_js["retriever"],
             "coder_summary": resp_js["coder"],
             "response_to_user": resp_js["response_to_user"],
-            "_messages": _messages
+            "_messages": _messages,
         }
 
 
 def buildManagementDept():
     workflow = StateGraph(MgmtState)
 
-    locationExtractor = LocationExtractor(ChatOpenAI(model="gpt-4o-mini", temperature=0))
+    locationExtractor = LocationExtractor(
+        ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    )
     taskExtractor = TaskExtractor(ChatOpenAI(model="gpt-4o", temperature=0))
     workflow.add_node(locationExtractor.name, locationExtractor)
     workflow.add_node(taskExtractor.name, taskExtractor)
@@ -158,25 +160,10 @@ def buildManagementDept():
     return workflow.compile()
 
 
-# user_query = "How many hotspots are there in Kanchanapisek this year on the map?"
-# user_query = "อุณหภูมิที่สัตหีบเป็นเท่าไร โชว์บนแผนที่ให้ดูหน่อย"
-user_query = "โชว์อุณหภูมิของสัตหีบบนแผนที่ให้ดูหน่อย"
-# user_query = "จากการดูแผนที่จะเห็นว่า เส้นลมจากเชียงใหม่พัดลงใต้เข้าสู่ภาคกลาง"
-# user_query = "เรามีแผนที่เส้นลมไหม"
-# user_query = "Please show me the hotspot layer in Thailand on the map"
-# user_query = "How does a bird fly?"
+from TestUtils import run_test_debug, run_test_fullstate, run_test_update
+from UserQuery import GisQuery, NonGisQuery
 
 graph = buildManagementDept()
+initial_state = {"original_human_message": [HumanMessage(content=GisQuery.Q005)]}
 
-initial_state = {"original_human_message": [HumanMessage(content=user_query)]}
-latest_state = None
-# for event in graph.stream(initial_state):
-#     for node_name, node_state in event.items():
-#         print(node_name)
-#         latest_state = node_state
-
-import pprint
-for state_snapshot in graph.stream(initial_state, stream_mode="values"):
-    pprint.pprint(state_snapshot)
-    print("="*80)
-    latest_state = state_snapshot
+run_test_fullstate(graph, initial_state)
