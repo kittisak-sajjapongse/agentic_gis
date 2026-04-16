@@ -3,6 +3,10 @@ from typing import Dict
 from langgraph.graph.state import CompiledStateGraph
 
 
+# REFERENCE:
+# 1. Streaming - https://docs.langchain.com/oss/python/langgraph/streaming
+
+
 def run_test_update(graph: CompiledStateGraph, initial_state: Dict) -> None:
     for event in graph.stream(initial_state):
         for node_name, node_state in event.items():
