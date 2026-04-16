@@ -32,3 +32,9 @@ def run_test_debug(graph: CompiledStateGraph, initial_state: Dict) -> None:
             print(f"=== Node: `{node_name}` custom data ===")
             pprint.pprint(chunk)
         print("-" * 80)
+
+
+def create_png_graph_viz(graph: CompiledStateGraph, png_file: str = "graph.png"):
+    graph_viz = graph.get_graph().draw_mermaid_png()
+    with open(png_file, "wb") as f:
+        f.write(graph_viz)

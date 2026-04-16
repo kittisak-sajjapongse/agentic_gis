@@ -7,7 +7,7 @@ from IAgentState import IAgentState
 from MgmtDept import buildManagementDept, MANAGEMENT_DEPARTMENT_NAME
 from IRAgent import InputRetrievalAgent
 from OGAgent import OutputGenerationAgent
-from TestUtils import run_test_update
+from TestUtils import run_test_update, create_png_graph_viz
 
 load_dotenv()
 
@@ -32,6 +32,7 @@ workflow.add_edge(ir_agent.name, og_agent.name)
 workflow.add_edge(og_agent.name, END)
 
 graph = workflow.compile()
+create_png_graph_viz(graph)
 
 initial_state = {"original_human_message": [HumanMessage(content=user_query)]}
 run_test_update(graph, initial_state)
