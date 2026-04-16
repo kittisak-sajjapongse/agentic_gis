@@ -9,6 +9,7 @@ from IAgentState import IAgentState
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from dotenv import load_dotenv
+from datetime import datetime, timezone
 
 load_dotenv()
 
@@ -38,6 +39,7 @@ class FeatureExtractor(AgentBase[MgmtState]):
     {{"features": [<LIST_OF_KEYWORDS_AND_FEATURES]}}
 
     Output requirements:
+    - Use English language
     - Return valid JSON string only and no markdown.
     - Do not include any explanation or text outside the JSON.
     - Use exactly the given structure
@@ -88,6 +90,7 @@ class LocationExtractor(AgentBase[MgmtState]):
     2. Put the user-specified area name in the list `invalid_locations` if the locations do not physically exist.
 
     Output requirements:
+    - Use English language
     - Return valid JSON string only and no markdown.
     - Do not include any explanation or text outside the JSON.
     - Use exactly the given structure
@@ -114,7 +117,49 @@ class TaskExtractor(AgentBase[MgmtState]):
         super().__init__(llm, name)
 
     def handleMessage(self, state: MgmtState) -> MgmtState:
-        return state
+        current_utc_time = datetime.now(timezone.utc)
+        current_dt = current_utc_time.strftime("%Y-%m-%d %H:%M:%S %Z")
+        system_prompt = SystemMessage(
+            content=(
+f"""
+You are an expert technical manager specializing in Geospatial Information Systems (GIS).
+Your role is to evaluate user requests and delegate tasks to your team.
+
+Your team consists of two specialists:
+1. GIS Layer Librarian ("retriever"): Retrieves specific vector or raster layers from a data collection.
+2. GIS Python Coder ("coder"): Writes Python code using the retrieved layers as input to process data and produce output layers.
+
+Your task:
+1. Determine if the user's request is GIS-related and can be fulfilled by your team.
+2. If it is GIS-related, write highly specific task summaries for each specialist.
+
+Guidelines:
+- Specificity: Explicitly mention target areas, locations, features, artifacts, dates, and times in your instructions. 
+- Absolute Dates: The current date and time is {current_dt}. When writing your summaries, do NOT synthesize or use relative time terms (e.g., "yesterday", "last year", "recently"). Always write exact, absolute dates.
+- Empty Tasks: If a specialist has no work to do, set their summary to `null`.
+- Retrieval Only: If the task is just layer retrieval, instruct the coder to simply "pass the input layers directly to the output without modification."
+
+Output Requirements:
+- Respond in English.
+- Output ONLY valid JSON. Do not use markdown formatting (e.g., no ```json fences).
+- Do not include any greetings, explanations, or text outside the JSON object.
+- Use exactly the following JSON schema:
+
+{{
+    "gis_related": <BOOLEAN>,
+    "retriever": <NULL_OR_STRING>,
+    "coder": <NULL_OR_STRING>
+}}
+"""
+            )
+        )
+        messages = [system_prompt] + state["original_human_message"]
+        response = self._llm.invoke(messages)
+        _messages = state["original_human_message"] + [response]
+        print("="*80)
+        print(response)
+        print("="*80)
+        return {"_messages": _messages}
 
 
 class SummaryGenerator(AgentBase[MgmtState]):
@@ -128,7 +173,7 @@ class SummaryGenerator(AgentBase[MgmtState]):
 
 
 def buildManagementDept():
-    workflow = StateGraph(IAgentState)
+    workflow = StateGraph(MgmtState)
 
     featureExtractor = FeatureExtractor(ChatOpenAI(model="gpt-4o-mini", temperature=0))
     locationExtractor = LocationExtractor(ChatOpenAI(model="gpt-4o-mini", temperature=0))
@@ -148,8 +193,10 @@ def buildManagementDept():
     return workflow.compile()
 
 
-# user_query = "How many hotspots are there in Kanchanapisek this year on the map?"
-user_query = "อุณหภูมิที่สัตหีบเป็นเท่าไร โชว์บนแผนที่ให้ดูหน่อย"
+user_query = "How many hotspots are there in Kanchanapisek this year on the map?"
+# user_query = "อุณหภูมิที่สัตหีบเป็นเท่าไร โชว์บนแผนที่ให้ดูหน่อย"
+# user_query = "จากการดูแผนที่จะเห็นว่า เส้นลมจากเชียงใหม่พัดลงใต้เข้าสู่ภาคกลาง"
+# user_query = "เรามีแผนที่เส้นลมไหม"
 # user_query = "Please show me the hotspot layer in Thailand on the map"
 # user_query = "How does a bird fly?"
 
@@ -162,4 +209,5 @@ for event in graph.stream(initial_state):
         print(node_name)
         latest_state = node_state
 
-print(latest_state)
+import pprint
+pprint.pprint(latest_state)
