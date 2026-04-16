@@ -61,4 +61,4 @@ Here is the JSON catalog:
 """
             )
         )
-        return state
+        return {}

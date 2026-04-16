@@ -1,7 +1,7 @@
 from typing import List, Literal
 from AgentBase import ObservableState
 from pydantic import BaseModel
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, AIMessage
 
 
 class GISFile(BaseModel):
@@ -16,10 +16,19 @@ class IAgentState(ObservableState):
     # The original request from the user
     original_human_message: HumanMessage
 
-    # Summary of requests from the user broken into bullets.
-    # This serve as a single source-of-truth of all departments of
-    # what they need to do.
-    request_summary: str
+    user_language: str
+
+    gis_related: bool
+
+    response_to_user: AIMessage
+
+    features: List[str]
+
+    locations: List[str]
+
+    retriever_summary: str
+
+    coder_summary: str
 
     # Paths to input GIS layers
     input_layer_paths: List[GISFile]

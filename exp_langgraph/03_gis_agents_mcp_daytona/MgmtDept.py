@@ -8,10 +8,11 @@ from IAgentState import IAgentState
 
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
-from dotenv import load_dotenv
+
 from datetime import datetime, timezone
 
-load_dotenv()
+
+MANAGEMENT_DEPARTMENT_NAME = "Mgmt"
 
 
 class MgmtState(IAgentState):
@@ -160,10 +161,17 @@ def buildManagementDept():
     return workflow.compile()
 
 
-from TestUtils import run_test_debug, run_test_fullstate, run_test_update
-from UserQuery import GisQuery, NonGisQuery
+def _module_test():
+    from TestUtils import run_test_debug, run_test_fullstate, run_test_update
+    from UserQuery import GisQuery, NonGisQuery
+    from dotenv import load_dotenv
 
-graph = buildManagementDept()
-initial_state = {"original_human_message": [HumanMessage(content=GisQuery.Q005)]}
+    load_dotenv()
 
-run_test_fullstate(graph, initial_state)
+    graph = buildManagementDept()
+    initial_state = {"original_human_message": [HumanMessage(content=GisQuery.Q005)]}
+
+    run_test_fullstate(graph, initial_state)
+
+
+# _module_test()

@@ -5,6 +5,9 @@ from IAgentState import IAgentState
 from langchain_core.messages import SystemMessage
 
 
+# First, determine output format: Only statistics or output layers
+
+
 class OutputGenerationAgent(AgentBase[IAgentState]):
     NAME = "OutputGeneration"
 
@@ -53,4 +56,4 @@ You MUST respond with exactly one valid JSON object and absolutely no other text
 """
             )
         )
-        return state
+        return {}
