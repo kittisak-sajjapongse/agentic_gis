@@ -8,13 +8,10 @@ from MgmtDept import buildManagementDept, MANAGEMENT_DEPARTMENT_NAME
 from IRAgent import InputRetrievalAgent
 from OGAgent import OutputGenerationAgent
 from TestUtils import run_test_update, create_png_graph_viz
+from UserQuery import GisQuery
 
 load_dotenv()
 
-
-user_query = "How many hotspots are there in Thailand this year on the map?"
-# user_query = "Please show me the hotspot layer in Thailand on the map"
-# user_query = "How does a bird fly?"
 
 workflow = StateGraph(IAgentState)
 
@@ -30,18 +27,12 @@ workflow.add_edge(START, MANAGEMENT_DEPARTMENT_NAME)
 workflow.add_conditional_edges(
     MANAGEMENT_DEPARTMENT_NAME,
     lambda state: state["gis_related"],
-    {
-        True: ir_agent.name,
-        False: END
-    }
+    {True: ir_agent.name, False: END},
 )
 workflow.add_conditional_edges(
     ir_agent.name,
     lambda state: "STOP" if state["coder_summary"] is None else "CONTINUE",
-    {
-        "CONTINUE": og_agent.name,
-        "STOP": END
-    }
+    {"CONTINUE": og_agent.name, "STOP": END},
 )
 workflow.add_edge(ir_agent.name, og_agent.name)
 workflow.add_edge(og_agent.name, END)
@@ -49,5 +40,5 @@ workflow.add_edge(og_agent.name, END)
 graph = workflow.compile()
 create_png_graph_viz(graph)
 
-initial_state = {"original_human_message": [HumanMessage(content=user_query)]}
+initial_state = {"original_human_message": [HumanMessage(content=GisQuery.Q002)]}
 run_test_update(graph, initial_state)
