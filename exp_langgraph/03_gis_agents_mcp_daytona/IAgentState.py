@@ -30,8 +30,14 @@ class IAgentState(ObservableState):
 
     coder_summary: str
 
+    # TODO: Determine if we need this
+    input_layer_required: bool
+
     # Paths to input GIS layers
     input_layer_paths: List[GISFile]
+
+    # Description of missing input layers
+    missing_input_layers: List[str]
 
     # Paths to output GIS layers
     output_layer_paths: List[GISFile]

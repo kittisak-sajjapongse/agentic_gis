@@ -40,5 +40,5 @@ workflow.add_edge(og_agent.name, END)
 graph = workflow.compile()
 create_png_graph_viz(graph)
 
-initial_state = {"original_human_message": [HumanMessage(content=GisQuery.Q002)]}
+initial_state = {"original_human_message": [HumanMessage(content=GisQuery.Q008)]}
 run_test_update(graph, initial_state)
