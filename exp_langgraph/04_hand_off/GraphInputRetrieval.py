@@ -180,6 +180,8 @@ async def on_message(message: cl.Message):
 
     state = graph.get_state(config)
 
+    # `state.next` lists scheduled next node(s); if it includes `ask_user`,
+    # the graph is paused at interrupt() and waiting for human input to resume.
     if state.next and "ask_user" in state.next:
         cl.user_session.set("is_interrupted", True)
         await cl.Message(
@@ -196,6 +198,6 @@ async def on_message(message: cl.Message):
         "selected_layers": state.values.get("selected_layers"),
         "general_layers": state.values.get("general_layers"),
         "accepted": state.values.get("accepted"),
-        "query_summary": state.values.get("query_summary")
+        "query_summary": state.values.get("query_summary"),
     }
     await cl.Message(content=json.dumps(response_payload, indent=2)).send()
