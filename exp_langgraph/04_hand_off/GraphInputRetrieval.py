@@ -1,23 +1,20 @@
 import json
-import pprint
 from typing import Dict, List, Optional
 
-import chainlit as cl
-from dotenv import load_dotenv
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
-from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
-from langgraph.types import Command, interrupt
+from langgraph.types import interrupt
 
 from AgentBase import AgentBase
 from GisCollection import GIS_COLLECTION
 from IAgentState import IAgentState
 
-load_dotenv()
+INPUT_RETRIEVAL_GRAPH_NAME = "INPUT_RETRIEVAL_GRAPH"
+IR_CLARIFICATION_INTERRUPT_TYPE = "ir_clarification"
 
 
 class IrState(IAgentState):
@@ -68,8 +65,8 @@ class IrManager(AgentBase[IrState]):
         - You may ask multiple questions in one response
 
         Output Requirements:
-        - You response will be a JSON string
-        - Respond without markup or explanation outside the JSON structure
+        - You response will be a JSON string only
+        - Respond without markup, without annotation, and without explanation outside the JSON structure
         - You wil always respond using the JSON structure below:
         {
             "clarification_question": <STRING - clarifying question, null if you don't have any question>,
@@ -125,14 +122,22 @@ def needs_tool_or_human(state: IrState) -> str:
 
 
 def ask_user_node(state: IrState) -> dict:
-    user_answer = interrupt({"question": state["clarification_question"]})
+    # Use a typed interrupt payload so callers can reliably identify this exact
+    # pause reason even when multiple interrupt sources exist in the same thread.
+    user_answer = interrupt(
+        {
+            "type": IR_CLARIFICATION_INTERRUPT_TYPE,
+            "source": f"{INPUT_RETRIEVAL_GRAPH_NAME}.ask_user",
+            "question": state["clarification_question"],
+        }
+    )
     return {
         "_messages": [HumanMessage(content=user_answer)],
         "clarification_question": None,
     }
 
 
-def build_graph():
+def build_input_retrieval_graph():
     workflow = StateGraph(IrState)
     ir_manager = IrManager(ChatOpenAI(model="gpt-4o", temperature=0))
 
@@ -149,55 +154,4 @@ def build_graph():
     workflow.add_edge("tools", ir_manager.name)
     workflow.add_edge("ask_user", ir_manager.name)
 
-    return workflow.compile(checkpointer=MemorySaver())
-
-
-@cl.on_chat_start
-async def on_chat_start():
-    graph = build_graph()
-    thread_id = cl.user_session.get("id")
-    cl.user_session.set("graph", graph)
-    cl.user_session.set("config", {"configurable": {"thread_id": thread_id}})
-    cl.user_session.set("is_interrupted", False)
-
-
-@cl.on_message
-async def on_message(message: cl.Message):
-    graph = cl.user_session.get("graph")
-    config = cl.user_session.get("config")
-    is_interrupted = cl.user_session.get("is_interrupted")
-
-    if is_interrupted:
-        inputs = Command(resume=message.content)
-    else:
-        inputs = {"_messages": [HumanMessage(content=message.content)]}
-
-    for event in graph.stream(inputs, config=config):
-        for node_name, node_state in event.items():
-            print(f"=== Node: {node_name} ===")
-            pprint.pprint(node_state)
-            print("-" * 80)
-
-    state = graph.get_state(config)
-
-    # `state.next` lists scheduled next node(s); if it includes `ask_user`,
-    # the graph is paused at interrupt() and waiting for human input to resume.
-    if state.next and "ask_user" in state.next:
-        cl.user_session.set("is_interrupted", True)
-        await cl.Message(
-            author="AI (Needs Clarification)",
-            content=state.values.get("clarification_question"),
-        ).send()
-        return
-
-    cl.user_session.set("is_interrupted", False)
-    response_payload = {
-        "clarification_question": state.values.get("clarification_question"),
-        "gis_related": state.values.get("gis_related"),
-        "decline_message": state.values.get("decline_message"),
-        "selected_layers": state.values.get("selected_layers"),
-        "general_layers": state.values.get("general_layers"),
-        "accepted": state.values.get("accepted"),
-        "query_summary": state.values.get("query_summary"),
-    }
-    await cl.Message(content=json.dumps(response_payload, indent=2)).send()
+    return workflow.compile()
