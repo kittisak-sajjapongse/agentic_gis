@@ -27,6 +27,7 @@ class IrState(IAgentState):
     selected_layers: Optional[List[Dict]]
     general_layers: Optional[bool]
     accepted: Optional[bool]
+    query_summary: Optional[str]
 
 
 @tool
@@ -61,7 +62,10 @@ class IrManager(AgentBase[IrState]):
         4. If you can't find any suitable layer from the collection, determine and indicate if the layers required are of general knowledge
         5. Accept user's prompt only if (1) the prompt is GIS-related, and (2) all required layers can be found
         6. If the user's prompt is not accepted, add reason in the declining message
-        Note: Each task step can be an iterative loop where you ask questions to the user if there's any ambiguity or unclear statements until you have a clear idea what user the needs, then move to the next task step.
+        7. If the user's prompt is accepted, rewrite summary of user's request once you find out more information from the user.
+        Note: 
+        - Each task step can be an iterative loop where you ask questions to the user if there's any ambiguity or unclear statements until you have a clear idea what user the needs, then move to the next task step.
+        - You may ask multiple questions in one response
 
         Output Requirements:
         - You response will be a JSON string
@@ -80,6 +84,7 @@ class IrManager(AgentBase[IrState]):
             ] <This field is null if you haven't decided yet what layers to be included>,
             "general_layers": <BOOLEAN - true if all layer required are of general knowledge>,
             "accepted": <BOOLEAN - true if user's prompt is accepted, null if not determined yet>
+            "query_summary": <STRING - Summary of user's request once accepted, null if not determined yet>
         }
         """
         )
@@ -106,6 +111,7 @@ class IrManager(AgentBase[IrState]):
             "selected_layers": resp_js["selected_layers"],
             "general_layers": resp_js["general_layers"],
             "accepted": resp_js["accepted"],
+            "query_summary": resp_js["query_summary"],
             "_messages": [response],
         }
 
@@ -190,5 +196,6 @@ async def on_message(message: cl.Message):
         "selected_layers": state.values.get("selected_layers"),
         "general_layers": state.values.get("general_layers"),
         "accepted": state.values.get("accepted"),
+        "query_summary": state.values.get("query_summary")
     }
     await cl.Message(content=json.dumps(response_payload, indent=2)).send()
