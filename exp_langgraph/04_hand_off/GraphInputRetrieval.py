@@ -13,6 +13,8 @@ from AgentBase import AgentBase
 from GisCollection import GIS_COLLECTION
 from IAgentState import IAgentState
 
+from datetime import datetime, timezone
+
 INPUT_RETRIEVAL_GRAPH_NAME = "INPUT_RETRIEVAL_GRAPH"
 IR_CLARIFICATION_INTERRUPT_TYPE = "ir_clarification"
 
@@ -21,10 +23,8 @@ class IrState(IAgentState):
     clarification_question: Optional[str]
     gis_related: Optional[bool]
     decline_message: Optional[str]
-    selected_layers: Optional[List[Dict]]
     general_layers: Optional[bool]
     accepted: Optional[bool]
-    query_summary: Optional[str]
 
 
 @tool
@@ -53,34 +53,38 @@ class IrManager(AgentBase[IrState]):
         requires processing or analysis.
 
         You task steps to achieve the goal:
-        1. Determine if user's prompt is a GIS-related question. If the prompt is not a question or is not GIS-related, simply decline and give a reason.
-        2. Search your collection using tools provided to find useful GIS layers
-        3. Note the details of the layers you selected and fill the detail into your response structure
-        4. If you can't find any suitable layer from the collection, determine and indicate if the layers required are of general knowledge
-        5. Accept user's prompt only if (1) the prompt is GIS-related, and (2) all required layers can be found
-        6. If the user's prompt is not accepted, add reason in the declining message
-        7. If the user's prompt is accepted, rewrite summary of user's request once you find out more information from the user.
+        1. Determine user's language
+        2. Determine if user's prompt is a GIS-related question. If the prompt is not a question or is not GIS-related, simply decline and give a reason.
+        3. Search your collection using tools provided to find useful GIS layers
+        4. Note the details of the layers you selected and fill the detail into your response structure
+        5. If you can't find any suitable layer from the collection, determine and indicate if the layers required are of general knowledge
+        6. Accept user's prompt only if (1) the prompt is GIS-related, and (2) all required layers can be found
+        7. If the user's prompt is not accepted, add reason in the declining message
+        8. If the user's prompt is accepted, rewrite summary of user's request once you find out more information from the user.
         Note: 
         - Each task step can be an iterative loop where you ask questions to the user if there's any ambiguity or unclear statements until you have a clear idea what user the needs, then move to the next task step.
         - You may ask multiple questions in one response
 
         Output Requirements:
         - You response will be a JSON string only
+        - You will respond only in English with some exceptions as indicated below
         - Respond without markup, without annotation, and without explanation outside the JSON structure
         - You wil always respond using the JSON structure below:
         {
-            "clarification_question": <STRING - clarifying question, null if you don't have any question>,
+            "user_language": <STRING - language the user uses. Use the full name of the language and do not use abbreviation>
+            "clarification_question": <STRING - clarifying question, null if you don't have any question. You will respond in the language the user uses>,
             "gis_related": <BOOLEAN - true if the prompt is a GIS-related question>,
-            "decline_message": <STRING - reason if the prompt is decline, null if the prompt is GIS-related question>,
+            "decline_message": <STRING - reason if the prompt is decline, null if the prompt is GIS-related question.>,
             "selected_layers": [
                 {
                     "path": <file path of the selected layers>,
-                    "type": <GEOPARQUET or GEOTIFF>
+                    "ftype": <GEOPARQUET or GEOTIFF>,
+                    "description": <description of the layer with the context of user's request>
                 },
                 ...
             ] <This field is null if you haven't decided yet what layers to be included>,
             "general_layers": <BOOLEAN - true if all layer required are of general knowledge>,
-            "accepted": <BOOLEAN - true if user's prompt is accepted, null if not determined yet>
+            "is_query_accepted": <BOOLEAN - true if user's prompt is accepted, null if not determined yet>
             "query_summary": <STRING - Summary of user's request once accepted, null if not determined yet>
         }
         """
@@ -88,7 +92,12 @@ class IrManager(AgentBase[IrState]):
 
     def handleMessage(self, state: IrState):
         llm_with_tools = self._llm.bind_tools(tools)
-        response = llm_with_tools.invoke([self._system_prompt] + state["_messages"])
+
+        current_utc_time = datetime.now(timezone.utc)
+        current_dt = current_utc_time.strftime("%Y-%m-%d %H:%M:%S %Z")
+        time_prompt = SystemMessage(content=f"\nFor your reference, the current date and time is: {current_dt}")
+
+        response = llm_with_tools.invoke([self._system_prompt, time_prompt] + state["_messages"])
         print("=" * 80)
         print(response.content)
         print("=" * 80)
@@ -102,13 +111,15 @@ class IrManager(AgentBase[IrState]):
 
         resp_js = json.loads(content)
         return {
+            "user_language": resp_js["user_language"],
+            "query_summary": resp_js["query_summary"],
+            "selected_layers": resp_js["selected_layers"],
+
             "clarification_question": resp_js["clarification_question"],
             "gis_related": resp_js["gis_related"],
             "decline_message": resp_js["decline_message"],
-            "selected_layers": resp_js["selected_layers"],
             "general_layers": resp_js["general_layers"],
-            "accepted": resp_js["accepted"],
-            "query_summary": resp_js["query_summary"],
+            "is_query_accepted": resp_js["is_query_accepted"],
             "_messages": [response],
         }
 

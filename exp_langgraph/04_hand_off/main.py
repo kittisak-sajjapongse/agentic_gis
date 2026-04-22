@@ -98,12 +98,13 @@ async def on_message(message: cl.Message):
     cl.user_session.set("is_interrupted", False)
     cl.user_session.set("pending_interrupt_id", None)
     response_payload = {
+        "user_language": state.values.get("user_language"),
         "clarification_question": state.values.get("clarification_question"),
         "gis_related": state.values.get("gis_related"),
         "decline_message": state.values.get("decline_message"),
         "selected_layers": state.values.get("selected_layers"),
         "general_layers": state.values.get("general_layers"),
-        "accepted": state.values.get("accepted"),
+        "is_query_accepted": state.values.get("is_query_accepted"),
         "query_summary": state.values.get("query_summary"),
     }
     await cl.Message(content=json.dumps(response_payload, indent=2)).send()

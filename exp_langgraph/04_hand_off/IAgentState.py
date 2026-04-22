@@ -1,7 +1,6 @@
-from typing import List, Literal
+from typing import List, Literal, Optional
 from AgentBase import ObservableState
 from pydantic import BaseModel
-from langchain_core.messages import HumanMessage, AIMessage
 
 
 class GISFile(BaseModel):
@@ -13,12 +12,17 @@ class GISFile(BaseModel):
 # Three agents use this inter-agent state to exchange data. The agents include:
 # 1.Management, 2.Input Retrieval, and 3. Output Generation
 class IAgentState(ObservableState):
-    # The original request from the user
-    user_query: HumanMessage
+    # Summary of user's request
+    query_summary: str
 
+    # The language the user uses
     user_language: str
 
-    gis_related: bool
+    # This indicates whether the query from the user is accepted.
+    # If not accepted, we end the graph execution.
+    is_query_accepted: bool
 
-    response_to_user: AIMessage
+    # List of layers selected from the collection
+    selected_layers: Optional[List[GISFile]]
+
 
