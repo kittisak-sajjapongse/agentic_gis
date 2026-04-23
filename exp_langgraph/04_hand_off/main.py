@@ -11,6 +11,12 @@ from GraphInputRetrieval import (
     IrState,
     build_input_retrieval_graph,
 )
+from GroupOutputProducer import (
+    OP_CLARIFICATION_INTERRUPT_TYPE,
+    OUTPUT_PRODUCER_GRAPH_NAME,
+    OpState,
+    build_output_producer_graph,
+)
 from langgraph.graph import END, START, StateGraph
 from IAgentState import IAgentState
 from langgraph.checkpoint.memory import MemorySaver
@@ -19,13 +25,23 @@ load_dotenv()
 
 
 def build_main_graph():
-    workflow = StateGraph(IrState)
+    workflow = StateGraph(IAgentState)
     ir_graph = build_input_retrieval_graph()
+    op_graph = build_output_producer_graph()
 
     workflow.add_node(INPUT_RETRIEVAL_GRAPH_NAME, ir_graph)
+    workflow.add_node(OUTPUT_PRODUCER_GRAPH_NAME, op_graph)
 
     workflow.add_edge(START, INPUT_RETRIEVAL_GRAPH_NAME)
-    workflow.add_edge(INPUT_RETRIEVAL_GRAPH_NAME, END)
+    workflow.add_conditional_edges(
+        INPUT_RETRIEVAL_GRAPH_NAME,
+        lambda state: state["is_query_accepted"],
+        {
+            True: OUTPUT_PRODUCER_GRAPH_NAME,
+            False: END,
+        }
+    )
+    workflow.add_edge(OUTPUT_PRODUCER_GRAPH_NAME, END)
 
     return workflow.compile(checkpointer=MemorySaver())
 
@@ -74,12 +90,15 @@ async def on_message(message: cl.Message):
             intr
             for intr in state.interrupts
             if isinstance(intr.value, dict)
-            and intr.value.get("type") == IR_CLARIFICATION_INTERRUPT_TYPE
+            and (
+                intr.value.get("type") == IR_CLARIFICATION_INTERRUPT_TYPE or
+                intr.value.get("type") == OP_CLARIFICATION_INTERRUPT_TYPE
+            )
         ]
 
         if len(matching_interrupts) != 1:
             raise ValueError(
-                f"Expected exactly one '{IR_CLARIFICATION_INTERRUPT_TYPE}' interrupt, "
+                f"Expected exactly one '{IR_CLARIFICATION_INTERRUPT_TYPE}' or '{OUTPUT_PRODUCER_GRAPH_NAME}' interrupt, "
                 f"found {len(matching_interrupts)}"
             )
 
@@ -97,14 +116,18 @@ async def on_message(message: cl.Message):
 
     cl.user_session.set("is_interrupted", False)
     cl.user_session.set("pending_interrupt_id", None)
+    # response_payload = {
+    #     "user_language": state.values.get("user_language"),
+    #     "clarification_question": state.values.get("clarification_question"),
+    #     "gis_related": state.values.get("gis_related"),
+    #     "decline_message": state.values.get("decline_message"),
+    #     "selected_layers": state.values.get("selected_layers"),
+    #     "general_layers": state.values.get("general_layers"),
+    #     "is_query_accepted": state.values.get("is_query_accepted"),
+    #     "query_summary": state.values.get("query_summary"),
+    # }
     response_payload = {
         "user_language": state.values.get("user_language"),
-        "clarification_question": state.values.get("clarification_question"),
-        "gis_related": state.values.get("gis_related"),
-        "decline_message": state.values.get("decline_message"),
-        "selected_layers": state.values.get("selected_layers"),
-        "general_layers": state.values.get("general_layers"),
-        "is_query_accepted": state.values.get("is_query_accepted"),
         "query_summary": state.values.get("query_summary"),
     }
     await cl.Message(content=json.dumps(response_payload, indent=2)).send()

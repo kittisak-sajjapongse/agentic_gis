@@ -1,5 +1,5 @@
 import json
-from typing import Dict, List, Optional
+from typing import Optional
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -24,7 +24,6 @@ class IrState(IAgentState):
     gis_related: Optional[bool]
     decline_message: Optional[str]
     general_layers: Optional[bool]
-    accepted: Optional[bool]
 
 
 @tool

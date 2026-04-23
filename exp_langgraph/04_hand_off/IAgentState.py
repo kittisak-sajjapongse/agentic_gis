@@ -1,4 +1,4 @@
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Any
 from AgentBase import ObservableState
 from pydantic import BaseModel
 
@@ -25,4 +25,6 @@ class IAgentState(ObservableState):
     # List of layers selected from the collection
     selected_layers: Optional[List[GISFile]]
 
+    code: str
 
+    outputs: Any
