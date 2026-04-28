@@ -41,12 +41,15 @@ class OpManager(AgentBase[OpState]):
                 - Write a Python script to create visualizions or charts and export them in a .PNG format
                 - Perform calculation
 
-            Your task step is to:
+            Your task step is to achieve the goal:
             1. Determine the number of outputs the user require. The outputs is a list of instances.
                Each instance can be one of (1) GEOPARQUET_LAYER, (2) GEOTIFF_LAYER, (3) REPORTS, or (4) CHARTS
             2. Make a list of outputs and descriptions for all of the outputs
             3. Determine if you need to create a Python script to answer user's query
             4. Create a Python script to generate outputs if you detemine so
+            Note: 
+            - Each task step can be an iterative loop where you ask questions to the user if there's any ambiguity or unclear statements until you have a clear idea what user the needs, then move to the next task step.
+            - You may ask multiple questions in one response
 
             Output Requirements:
             - You response will be a JSON string only
