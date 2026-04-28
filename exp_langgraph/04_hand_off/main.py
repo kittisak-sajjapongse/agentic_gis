@@ -24,10 +24,10 @@ from langgraph.checkpoint.memory import MemorySaver
 load_dotenv()
 
 
-def build_main_graph():
+async def build_main_graph():
     workflow = StateGraph(IAgentState)
     ir_graph = build_input_retrieval_graph()
-    op_graph = build_output_producer_graph()
+    op_graph = await build_output_producer_graph()
 
     workflow.add_node(INPUT_RETRIEVAL_GRAPH_NAME, ir_graph)
     workflow.add_node(OUTPUT_PRODUCER_GRAPH_NAME, op_graph)
@@ -48,7 +48,7 @@ def build_main_graph():
 
 @cl.on_chat_start
 async def on_chat_start():
-    graph = build_main_graph()
+    graph = await build_main_graph()
     thread_id = cl.user_session.get("id")
     cl.user_session.set("graph", graph)
     cl.user_session.set("config", {"configurable": {"thread_id": thread_id}})
@@ -73,13 +73,13 @@ async def on_message(message: cl.Message):
     else:
         inputs = {"_messages": [HumanMessage(content=message.content)]}
 
-    for event in graph.stream(inputs, config=config):
+    async for event in graph.astream(inputs, config=config):
         for node_name, node_state in event.items():
             print(f"=== Node: {node_name} ===")
             pprint.pprint(node_state)
             print("-" * 80)
 
-    state = graph.get_state(config)
+    state = await graph.aget_state(config)
 
     # For subgraphs, `state.next` may not expose inner node names (e.g. `ask_user`).
     # `state.interrupts` is the reliable signal that execution is paused at interrupt().
@@ -129,5 +129,8 @@ async def on_message(message: cl.Message):
     response_payload = {
         "user_language": state.values.get("user_language"),
         "query_summary": state.values.get("query_summary"),
+        "outputs": state.values.get("outputs"),
+        "code_execution_result": state.values.get("code_execution_result"),
+        "decline_message": state.values.get("decline_message"),
     }
     await cl.Message(content=json.dumps(response_payload, indent=2)).send()
