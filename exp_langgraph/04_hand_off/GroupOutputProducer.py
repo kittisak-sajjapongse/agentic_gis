@@ -35,6 +35,7 @@ class OpState(IAgentState):
 
 _docker_mcp_client: Optional[MultiServerMCPClient] = None
 _docker_mcp_tools: Optional[List[BaseTool]] = None
+_op_tool_node: Optional[ToolNode] = None
 
 
 def _get_docker_mcp_client() -> MultiServerMCPClient:
@@ -64,6 +65,21 @@ async def _get_docker_mcp_tools() -> List[BaseTool]:
     mcp_client = _get_docker_mcp_client()
     _docker_mcp_tools = await mcp_client.get_tools(server_name=DOCKER_MCP_SERVER_NAME)
     return _docker_mcp_tools
+
+
+async def op_tools_node(state: OpState) -> dict:
+    if _op_tool_node is None:
+        raise RuntimeError("Tool node is not initialized")
+
+    result = await _op_tool_node.ainvoke(state)
+    tool_messages = result.get("_messages", [])
+    for message in tool_messages:
+        tool_name = getattr(message, "name", "unknown_tool")
+        print("-" * 80)
+        print(f"[OUTPUT_PRODUCER_TOOL:{tool_name}]")
+        print(message.content)
+        print("-" * 80)
+    return result
 
 
 class OpManager(AgentBase[OpState]):
@@ -177,12 +193,14 @@ def ask_user_node(state: OpState) -> dict:
 
 
 async def build_output_producer_graph():
+    global _op_tool_node
     workflow = StateGraph(OpState)
     mcp_tools = await _get_docker_mcp_tools()
     op_manager = OpManager(ChatOpenAI(model="gpt-4o", temperature=0), tools=mcp_tools)
+    _op_tool_node = ToolNode(mcp_tools, messages_key="_messages")
 
     workflow.add_node(op_manager.name, op_manager)
-    workflow.add_node("tools", ToolNode(mcp_tools, messages_key="_messages"))
+    workflow.add_node("tools", op_tools_node)
     workflow.add_node("ask_user", ask_user_node)
 
     workflow.add_edge(START, op_manager.name)
