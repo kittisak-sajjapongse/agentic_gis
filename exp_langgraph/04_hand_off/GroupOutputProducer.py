@@ -128,7 +128,9 @@ class OpManager(AgentBase[OpState]):
             Note:
             - Each task step can be an iterative loop where you ask questions to the user if there's any ambiguity or unclear statements until you have a clear idea what user the needs, then move to the next task step.
             - You may ask multiple questions in one response
-            - You need to calls tools to execute code if there is a code to run
+            - If "code" is non-empty, you MUST call Docker MCP tool(s) to execute that code before returning final JSON.
+            - Do not return final JSON with non-empty "code" until at least one tool execution result is observed.
+            - If execution fails, you may revise code and call tool(s) again, or return decline_message with the execution reason.
             - You may call tools multiple times before finalizing.
 
             Output Requirements:
