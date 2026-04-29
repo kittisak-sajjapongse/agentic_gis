@@ -97,9 +97,13 @@ class IrManager(AgentBase[IrState]):
         time_prompt = SystemMessage(content=f"\nFor your reference, the current date and time is: {current_dt}")
 
         response = llm_with_tools.invoke([self._system_prompt, time_prompt] + state["_messages"])
-        print("=" * 80)
-        print(response.content)
-        print("=" * 80)
+        separate_line = "=" * 80
+        print(f"=== IrManager {separate_line}")
+        if response.tool_calls:
+            print(f"tool_call: {response.tool_calls}")
+        else:
+            print(response.content)
+        print(separate_line)
 
         if response.tool_calls:
             return {"_messages": [response]}

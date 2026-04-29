@@ -129,6 +129,13 @@ class OpManager(AgentBase[OpState]):
         response = llm_with_tools.invoke(
             [self._system_prompt, input_prompt] + state["_messages"]
         )
+        separate_line = "=" * 80
+        print(f"=== OpManager {separate_line}")
+        if response.tool_calls:
+            print(f"tool_call: {response.tool_calls}")
+        else:
+            print(response.content)
+        print(separate_line)
 
         if response.tool_calls:
             return {"_messages": [response]}
