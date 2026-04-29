@@ -65,7 +65,10 @@ class IrManager(AgentBase[IrState]):
         - You may ask multiple questions in one response
 
         Output Requirements:
-        - You response will be a JSON string only
+        - Your response must be a valid raw JSON string that can be parsed by json.loads
+        - Output only the JSON object; do not use markdown fences and do not add extra prose
+        - Format JSON as pretty-printed multiline JSON with indentation and actual line breaks
+        - Do not wrap the JSON object in quotes
         - You will respond only in English with some exceptions as indicated below
         - Respond without markup, without annotation, and without explanation outside the JSON structure
         - You wil always respond using the JSON structure below:

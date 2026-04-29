@@ -77,7 +77,27 @@ async def op_tools_node(state: OpState) -> dict:
         tool_name = getattr(message, "name", "unknown_tool")
         print("-" * 80)
         print(f"[OUTPUT_PRODUCER_TOOL:{tool_name}]")
-        print(message.content)
+        content = message.content
+        if isinstance(content, list):
+            for item in content:
+                if isinstance(item, dict) and item.get("type") == "text":
+                    text = item.get("text", "")
+                    try:
+                        parsed = json.loads(text)
+                        stdout = parsed.get("stdout")
+                        stderr = parsed.get("stderr")
+                        if stdout is not None:
+                            print("[stdout]")
+                            print(stdout)
+                        if stderr is not None:
+                            print("[stderr]")
+                            print(stderr)
+                        if stdout is None and stderr is None:
+                            print(json.dumps(parsed, ensure_ascii=False, indent=2))
+                    except Exception:
+                        print(text)
+        else:
+            print(content)
         print("-" * 80)
     return result
 
@@ -108,10 +128,14 @@ class OpManager(AgentBase[OpState]):
             Note:
             - Each task step can be an iterative loop where you ask questions to the user if there's any ambiguity or unclear statements until you have a clear idea what user the needs, then move to the next task step.
             - You may ask multiple questions in one response
+            - You need to calls tools to execute code if there is a code to run
             - You may call tools multiple times before finalizing.
 
             Output Requirements:
-            - You response will be a JSON string only
+            - Your response must be a valid raw JSON string that can be parsed by json.loads
+            - Output only the JSON object; do not use markdown fences and do not add extra prose
+            - Format JSON as pretty-printed multiline JSON with indentation and actual line breaks
+            - Do not wrap the JSON object in quotes
             - You will respond only in English with some exceptions as indicated below
             - Respond without markup, without annotation, and without explanation outside the JSON structure
             - If you are making a tool call, do not output final JSON in that turn.
