@@ -71,7 +71,7 @@ class IrManager(AgentBase[IrState]):
         - Do not wrap the JSON object in quotes
         - You will respond only in English with some exceptions as indicated below
         - Respond without markup, without annotation, and without explanation outside the JSON structure
-        - You wil always respond using the JSON structure below:
+        - You will always respond using the JSON structure below:
         {
             "user_language": <STRING - language the user uses. Use the full name of the language and do not use abbreviation>
             "clarification_question": <STRING - clarifying question, null if you don't have any question. You will respond in the language the user uses>,
