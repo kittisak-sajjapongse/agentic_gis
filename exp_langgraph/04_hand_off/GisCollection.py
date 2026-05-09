@@ -29,7 +29,7 @@
 
 GIS_COLLECTION = [
     {
-        "file": "/data/hotspot/hotspot_2024",
+        "file": "/data/hotspot_2024.parquet",
         "description": "Hotspots in Thailand for the year 2024",
         "continent": "ASIA",
         "country": "THAILAND",
@@ -41,7 +41,7 @@ GIS_COLLECTION = [
         "type": "GEOPARQUET"
     },
     {
-        "file": "/data/hotspot/hotspot_2025",
+        "file": "/data/hotspot_2025.parquet",
         "description": "Hotspots in Thailand for the year 2025",
         "continent": "ASIA",
         "country": "THAILAND",
@@ -53,31 +53,103 @@ GIS_COLLECTION = [
         "type": "GEOPARQUET"
     },
     {
-        "file": "/data/burnscar/burnscar_2024",
+        "file": "/data/burnscar_2024_01.parquet",
         "description": "Burnscar in Thailand for the year 2024",
         "continent": "ASIA",
         "country": "THAILAND",
         "area_name": "",
         "year": "2024",
-        "month": "Jan to Apr",
+        "month": "Jan",
         "day": None,
         "time": None,
         "type": "GEOPARQUET"
     },
     {
-        "file": "/data/burnscar/burnscar_2025",
+        "file": "/data/burnscar_2024_02.parquet",
+        "description": "Burnscar in Thailand for the year 2024",
+        "continent": "ASIA",
+        "country": "THAILAND",
+        "area_name": "",
+        "year": "2024",
+        "month": "Feb",
+        "day": None,
+        "time": None,
+        "type": "GEOPARQUET"
+    },
+    {
+        "file": "/data/burnscar_2024_03.parquet",
+        "description": "Burnscar in Thailand for the year 2024",
+        "continent": "ASIA",
+        "country": "THAILAND",
+        "area_name": "",
+        "year": "2024",
+        "month": "Mar",
+        "day": None,
+        "time": None,
+        "type": "GEOPARQUET"
+    },
+    {
+        "file": "/data/burnscar_2024_04.parquet",
+        "description": "Burnscar in Thailand for the year 2024",
+        "continent": "ASIA",
+        "country": "THAILAND",
+        "area_name": "",
+        "year": "2024",
+        "month": "Apr",
+        "day": None,
+        "time": None,
+        "type": "GEOPARQUET"
+    },
+    {
+        "file": "/data/burnscar_2025_01.parquet",
         "description": "Burnscar in Thailand for the year 2025",
         "continent": "ASIA",
         "country": "THAILAND",
         "area_name": "",
         "year": "2025",
-        "month": "Jan to Apr",
+        "month": "Jan",
         "day": None,
         "time": None,
         "type": "GEOPARQUET"
     },
     {
-        "file": "/data/rainfall/rainfall_2025_01",
+        "file": "/data/burnscar_2025_02.parquet",
+        "description": "Burnscar in Thailand for the year 2025",
+        "continent": "ASIA",
+        "country": "THAILAND",
+        "area_name": "",
+        "year": "2025",
+        "month": "Feb",
+        "day": None,
+        "time": None,
+        "type": "GEOPARQUET"
+    },
+    {
+        "file": "/data/burnscar_2025_03.parquet",
+        "description": "Burnscar in Thailand for the year 2025",
+        "continent": "ASIA",
+        "country": "THAILAND",
+        "area_name": "",
+        "year": "2025",
+        "month": "Mar",
+        "day": None,
+        "time": None,
+        "type": "GEOPARQUET"
+    },
+    {
+        "file": "/data/burnscar_2025_04.parquet",
+        "description": "Burnscar in Thailand for the year 2025",
+        "continent": "ASIA",
+        "country": "THAILAND",
+        "area_name": "",
+        "year": "2025",
+        "month": "Apr",
+        "day": None,
+        "time": None,
+        "type": "GEOPARQUET"
+    },
+    {
+        "file": "/data/rainfall_2025_01_cog.tiff",
         "description": "Rainfall in Thailand for the year 2025",
         "continent": "ASIA",
         "country": "THAILAND",
@@ -89,7 +161,7 @@ GIS_COLLECTION = [
         "type": "GEOTIFF"
     },
     {
-        "file": "/data/rainfall/rainfall_2025_02",
+        "file": "/data/rainfall_2025_02_cog.tiff",
         "description": "Rainfall in Thailand for the year 2025",
         "continent": "ASIA",
         "country": "THAILAND",
@@ -101,7 +173,7 @@ GIS_COLLECTION = [
         "type": "GEOTIFF"
     },
     {
-        "file": "/data/rainfall/rainfall_2025_03",
+        "file": "/data/rainfall_2025_03_cog.tiff",
         "description": "Rainfall in Thailand for the year 2025",
         "continent": "ASIA",
         "country": "THAILAND",
@@ -113,7 +185,7 @@ GIS_COLLECTION = [
         "type": "GEOTIFF"
     },
     {
-        "file": "/data/rainfall/rainfall_2025_04",
+        "file": "/data/rainfall_2025_04_cog.tiff",
         "description": "Rainfall in Thailand for the year 2025",
         "continent": "ASIA",
         "country": "THAILAND",
@@ -125,7 +197,7 @@ GIS_COLLECTION = [
         "type": "GEOTIFF"
     },
     {
-        "file": "/data/rainfall/rainfall_2024_01",
+        "file": "/data/rainfall_2024_01_cog.tiff",
         "description": "Rainfall in Thailand for the year 2024",
         "continent": "ASIA",
         "country": "THAILAND",
@@ -137,7 +209,7 @@ GIS_COLLECTION = [
         "type": "GEOTIFF"
     },
     {
-        "file": "/data/rainfall/rainfall_20254_02",
+        "file": "/data/rainfall_20254_02_cog.tiff",
         "description": "Rainfall in Thailand for the year 2024",
         "continent": "ASIA",
         "country": "THAILAND",
@@ -149,7 +221,7 @@ GIS_COLLECTION = [
         "type": "GEOTIFF"
     },
     {
-        "file": "/data/rainfall/rainfall_2024_03",
+        "file": "/data/rainfall_2024_03_cog.tiff",
         "description": "Rainfall in Thailand for the year 2024",
         "continent": "ASIA",
         "country": "THAILAND",
@@ -161,7 +233,7 @@ GIS_COLLECTION = [
         "type": "GEOTIFF"
     },
     {
-        "file": "/data/rainfall/rainfall_2024_04",
+        "file": "/data/rainfall_2024_04_cog.tiff",
         "description": "Rainfall in Thailand for the year 2024",
         "continent": "ASIA",
         "country": "THAILAND",
