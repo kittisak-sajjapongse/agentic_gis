@@ -128,6 +128,8 @@ class OpManager(AgentBase[OpState]):
             Note:
             - Each task step can be an iterative loop where you ask questions to the user if there's any ambiguity or unclear statements until you have a clear idea what user the needs, then move to the next task step.
             - You may ask multiple questions in one response
+            - For every Docker MCP tool call, always pass:
+              host_mount_dir="/Users/kittisak/data/work/agentic_gis/exp_langgraph/04_hand_off/data"
             - If "code" is non-empty, you MUST call Docker MCP tool(s) to execute that code before returning final JSON.
             - Do not return final JSON with non-empty "code" until at least one tool execution result is observed.
             - If execution fails, you may revise code and call tool(s) again, or return decline_message with the execution reason.
