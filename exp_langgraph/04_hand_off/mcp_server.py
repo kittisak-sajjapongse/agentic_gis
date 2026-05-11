@@ -25,6 +25,18 @@ os.makedirs(HOST_MOUNT_DIR, exist_ok=True)
 mcp = FastMCP(MCP_NAME, host=MCP_HOST, port=MCP_PORT)
 
 
+def _to_text(value: str | bytes | None) -> str:
+    # subprocess output can be bytes in some error/timeout cases
+    # (e.g., TimeoutExpired stdout/stderr), so normalize to str before
+    # concatenating/serializing to avoid type errors like:
+    # "can't concat str to bytes".
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
+
+
 def _build_docker_command(
     host_mount_dir: str,
     script_path: str,
@@ -70,7 +82,14 @@ def run_python(
         Optional[List[str]],
         Field(description="Optional pip package names to install before execution."),
     ] = None,
-    timeout_s: Annotated[int, Field(description="Max execution time in seconds.")] = DEFAULT_TIMEOUT_S,
+    timeout_s: Annotated[
+        int,
+        Field(
+            description=(
+                "Max execution time in seconds. Optional; if omitted, server default is used."
+            )
+        ),
+    ] = DEFAULT_TIMEOUT_S,
 ) -> dict:
     """Execute Python code inside a Docker container and return stdout/stderr."""
     mount_dir_abs = os.path.abspath(host_mount_dir)
@@ -94,20 +113,24 @@ def run_python(
             timeout=timeout_s,
         )
     except subprocess.TimeoutExpired as exc:
+        timeout_stdout = _to_text(exc.stdout)
+        timeout_stderr = _to_text(exc.stderr)
         return {
             "ok": False,
             "exit_code": None,
-            "stdout": exc.stdout or "",
-            "stderr": (exc.stderr or "") + "\nTimeout exceeded",
+            "stdout": timeout_stdout,
+            "stderr": timeout_stderr + "\nTimeout exceeded",
             "run_id": run_id,
             "run_dir": run_dir,
         }
 
+    stdout_text = _to_text(result.stdout)
+    stderr_text = _to_text(result.stderr)
     return {
         "ok": result.returncode == 0,
         "exit_code": result.returncode,
-        "stdout": result.stdout,
-        "stderr": result.stderr,
+        "stdout": stdout_text,
+        "stderr": stderr_text,
         "command": " ".join(cmd),
         "run_id": run_id,
         "run_dir": run_dir,

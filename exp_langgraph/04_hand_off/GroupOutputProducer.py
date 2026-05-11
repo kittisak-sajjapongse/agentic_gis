@@ -130,6 +130,7 @@ class OpManager(AgentBase[OpState]):
             - You may ask multiple questions in one response
             - For every Docker MCP tool call, always pass:
               host_mount_dir="/Users/kittisak/data/work/agentic_gis/exp_langgraph/04_hand_off/data"
+            - For timeout handling: first call run_python without timeout_s (use tool default). Increase timeout_s only if execution times out.
             - If "code" is non-empty, you MUST call Docker MCP tool(s) to execute that code before returning final JSON.
             - Do not return final JSON with non-empty "code" until at least one tool execution result is observed.
             - If execution fails, you may revise code and call tool(s) again, or return decline_message with the execution reason.
