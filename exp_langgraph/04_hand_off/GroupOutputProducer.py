@@ -6,7 +6,6 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import BaseTool
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
-from langgraph.prebuilt import ToolNode
 from langgraph.types import interrupt
 from pydantic import BaseModel
 
@@ -14,6 +13,7 @@ from AgentBase import AgentBase
 from IAgentState import IAgentState
 from runtime.settings import AppSettings
 from tools.mcp_tools import DockerMCPToolProvider
+from tools.tool_executor import ToolExecutorNode
 
 OUTPUT_PRODUCER_GRAPH_NAME = "OUTPUT_PRODUCER_GRAPH"
 OP_CLARIFICATION_INTERRUPT_TYPE = "op_clarification"
@@ -30,42 +30,6 @@ class OpState(IAgentState):
     decline_message: Optional[str]
     outputs: Optional[List[OpOutput]]
     code: Optional[str]
-
-
-class OpToolsNode:
-    def __init__(self, tools: List[BaseTool]):
-        self._tool_node = ToolNode(tools, messages_key="_messages")
-
-    async def __call__(self, state: OpState) -> dict:
-        result = await self._tool_node.ainvoke(state)
-        tool_messages = result.get("_messages", [])
-        for message in tool_messages:
-            tool_name = getattr(message, "name", "unknown_tool")
-            print("-" * 80)
-            print(f"[OUTPUT_PRODUCER_TOOL:{tool_name}]")
-            content = message.content
-            if isinstance(content, list):
-                for item in content:
-                    if isinstance(item, dict) and item.get("type") == "text":
-                        text = item.get("text", "")
-                        try:
-                            parsed = json.loads(text)
-                            stdout = parsed.get("stdout")
-                            stderr = parsed.get("stderr")
-                            if stdout is not None:
-                                print("[stdout]")
-                                print(stdout)
-                            if stderr is not None:
-                                print("[stderr]")
-                                print(stderr)
-                            if stdout is None and stderr is None:
-                                print(json.dumps(parsed, ensure_ascii=False, indent=2))
-                        except Exception:
-                            print(text)
-            else:
-                print(content)
-            print("-" * 80)
-        return result
 
 
 class OpManager(AgentBase[OpState]):
@@ -194,7 +158,7 @@ async def build_output_producer_graph(
     provider = tool_provider or DockerMCPToolProvider(AppSettings.from_env())
     mcp_tools = await provider.get_tools()
     op_manager = OpManager(ChatOpenAI(model="gpt-4o", temperature=0), tools=mcp_tools)
-    op_tool_node = OpToolsNode(mcp_tools)
+    op_tool_node = ToolExecutorNode(mcp_tools, log_prefix="OUTPUT_PRODUCER_TOOL")
 
     workflow.add_node(op_manager.name, op_manager)
     workflow.add_node("tools", op_tool_node)

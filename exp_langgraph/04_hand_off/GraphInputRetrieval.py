@@ -5,12 +5,12 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
-from langgraph.prebuilt import ToolNode
 from langgraph.types import interrupt
 
 from AgentBase import AgentBase
 from IAgentState import IAgentState
 from tools.gis_catalog_tools import search_gis_collection
+from tools.tool_executor import ToolExecutorNode
 
 from datetime import datetime, timezone
 
@@ -151,7 +151,7 @@ def build_input_retrieval_graph():
     ir_manager = IrManager(ChatOpenAI(model="gpt-4o", temperature=0))
 
     workflow.add_node(ir_manager.name, ir_manager)
-    workflow.add_node("tools", ToolNode(tools, messages_key="_messages"))
+    workflow.add_node("tools", ToolExecutorNode(tools))
     workflow.add_node("ask_user", ask_user_node)
 
     workflow.add_edge(START, ir_manager.name)
