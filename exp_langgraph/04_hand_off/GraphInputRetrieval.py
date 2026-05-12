@@ -1,68 +1,22 @@
-from typing import Optional
+"""Compatibility shim.
 
-from langchain_core.messages import HumanMessage
-from langchain_openai import ChatOpenAI
-from langgraph.graph import END, START, StateGraph
-from langgraph.types import interrupt
+Use graphs.input_retrieval_graph for new imports.
+"""
 
-from agents.input_retrieval_agent import IrManager
-from IAgentState import IAgentState
-from tools.gis_catalog_tools import search_gis_collection
-from tools.tool_executor import ToolExecutorNode
+from graphs.input_retrieval_graph import (
+    INPUT_RETRIEVAL_GRAPH_NAME,
+    IR_CLARIFICATION_INTERRUPT_TYPE,
+    IrState,
+    ask_user_node,
+    build_input_retrieval_graph,
+    needs_tool_or_human,
+)
 
-INPUT_RETRIEVAL_GRAPH_NAME = "INPUT_RETRIEVAL_GRAPH"
-IR_CLARIFICATION_INTERRUPT_TYPE = "ir_clarification"
-
-
-class IrState(IAgentState):
-    clarification_question: Optional[str]
-    gis_related: Optional[bool]
-    decline_message: Optional[str]
-    general_layers: Optional[bool]
-
-
-tools = [search_gis_collection]
-
-
-def needs_tool_or_human(state: IrState) -> str:
-    if len(state["_messages"][-1].tool_calls) > 0:
-        return "tools"
-    if state.get("clarification_question") is not None:
-        return "ask_user"
-    return "end"
-
-
-def ask_user_node(state: IrState) -> dict:
-    # Use a typed interrupt payload so callers can reliably identify this exact
-    # pause reason even when multiple interrupt sources exist in the same thread.
-    user_answer = interrupt(
-        {
-            "type": IR_CLARIFICATION_INTERRUPT_TYPE,
-            "source": f"{INPUT_RETRIEVAL_GRAPH_NAME}.ask_user",
-            "question": state["clarification_question"],
-        }
-    )
-    return {
-        "_messages": [HumanMessage(content=user_answer)],
-        "clarification_question": None,
-    }
-
-
-def build_input_retrieval_graph():
-    workflow = StateGraph(IrState)
-    ir_manager = IrManager(ChatOpenAI(model="gpt-4o", temperature=0), tools=tools)
-
-    workflow.add_node(ir_manager.name, ir_manager)
-    workflow.add_node("tools", ToolExecutorNode(tools))
-    workflow.add_node("ask_user", ask_user_node)
-
-    workflow.add_edge(START, ir_manager.name)
-    workflow.add_conditional_edges(
-        ir_manager.name,
-        needs_tool_or_human,
-        {"tools": "tools", "ask_user": "ask_user", "end": END},
-    )
-    workflow.add_edge("tools", ir_manager.name)
-    workflow.add_edge("ask_user", ir_manager.name)
-
-    return workflow.compile()
+__all__ = [
+    "INPUT_RETRIEVAL_GRAPH_NAME",
+    "IR_CLARIFICATION_INTERRUPT_TYPE",
+    "IrState",
+    "needs_tool_or_human",
+    "ask_user_node",
+    "build_input_retrieval_graph",
+]

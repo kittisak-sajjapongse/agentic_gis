@@ -6,7 +6,7 @@ from langchain_core.messages import SystemMessage
 from langchain_core.tools import BaseTool
 
 from AgentBase import AgentBase
-from IAgentState import IAgentState
+from domain.state_models import IAgentState
 
 
 class OpManager(AgentBase[IAgentState]):

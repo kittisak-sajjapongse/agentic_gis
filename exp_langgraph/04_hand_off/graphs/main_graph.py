@@ -1,7 +1,7 @@
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
-from IAgentState import IAgentState
+from domain.state_models import IAgentState
 from .input_retrieval_graph import (
     INPUT_RETRIEVAL_GRAPH_NAME,
     build_input_retrieval_graph,
