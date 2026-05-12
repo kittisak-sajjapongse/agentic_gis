@@ -7,6 +7,7 @@ class GisQuery:
     Q006 = "แสดงร่องรอยการเผาไหม้ในเดือนมี.ค.ของปี 2025,2024,2023 และทำการหาว่าแต่ละพื้นที่มีการเผาไหม้ซ้ำซ้อนกี่ครั้งในพิ้นที่อุทยานแม่ปิง"
     Q007 = "หาข้อมูลพิกัด 7-11 ในกรุงเทพฯมีกี่จุดและแต่ละจุดมีความห่างกันโดยเฉลี่ยเท่าไหร่"
     Q008 = "ค่าเฉลี่ยปริมาณน้ำฝนในพื้นที่จังหวัดเชียงใหม่ต่างกันอยู่เท่าไรในเดือนเม.ย.ของปี 2567 และ 2566"
+    Q009 = "I want to know the areas in Thailand where the burnscars in Thailand overlap more than three times during the years 2024 and 2025. You must convert the CRS of the files to be the same before performing analysis if the files have different CRS."
 
 
 class NonGisQuery:
