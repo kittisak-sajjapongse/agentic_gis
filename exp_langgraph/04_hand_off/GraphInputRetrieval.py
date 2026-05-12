@@ -3,15 +3,14 @@ from typing import Optional
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 from langgraph.types import interrupt
 
 from AgentBase import AgentBase
-from GisCollection import GIS_COLLECTION
 from IAgentState import IAgentState
+from tools.gis_catalog_tools import search_gis_collection
 
 from datetime import datetime, timezone
 
@@ -24,14 +23,6 @@ class IrState(IAgentState):
     gis_related: Optional[bool]
     decline_message: Optional[str]
     general_layers: Optional[bool]
-
-
-@tool
-def search_gis_collection():
-    """
-    Retrieve entries of GIS layers in the collection
-    """
-    return json.dumps(GIS_COLLECTION)
 
 
 tools = [search_gis_collection]
@@ -156,6 +147,7 @@ def ask_user_node(state: IrState) -> dict:
 
 def build_input_retrieval_graph():
     workflow = StateGraph(IrState)
+    tools = [search_gis_collection]
     ir_manager = IrManager(ChatOpenAI(model="gpt-4o", temperature=0))
 
     workflow.add_node(ir_manager.name, ir_manager)
