@@ -1,23 +1,22 @@
 import os
-import chainlit as cl
 from typing import TypedDict, Annotated, Optional
+
+from dotenv import load_dotenv
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langchain_openai import ChatOpenAI
+from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langgraph.types import interrupt, Command
-from langgraph.checkpoint.memory import MemorySaver
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
-from dotenv import load_dotenv
 
 load_dotenv()
 
-# ============================================================
-# 1. STATE & LLM SETUP
-# ============================================================
+
 class GraphState(TypedDict):
-    messages: Annotated[list, add_messages]   
-    question_for_user: Optional[str]          
-    final_response: Optional[str]             
+    messages: Annotated[list, add_messages]
+    question_for_user: Optional[str]
+    final_response: Optional[str]
+
 
 llm = ChatOpenAI(
     model="gpt-4o",
@@ -25,128 +24,102 @@ llm = ChatOpenAI(
     temperature=0.7,
 )
 
-# ============================================================
-# 2. GRAPH NODES
-# ============================================================
-def ai_node(state: GraphState) -> GraphState:
-    system_prompt = SystemMessage(content="""You are a helpful AI assistant.
-When you receive a request:
-- If you need clarification to give a better answer, respond ONLY with:
-  QUESTION: <your single clarifying question here>
-- If you have enough information, respond ONLY with:
-  ANSWER: <your full response here>""")
 
-    messages_to_send = [system_prompt] + state["messages"]
-    response = llm.invoke(messages_to_send)
+def ai_node(state: GraphState) -> GraphState:
+    system_prompt = SystemMessage(
+        content=(
+            "You are a helpful AI assistant.\n"
+            "When you receive a request:\n"
+            "- If you need clarification to give a better answer, respond ONLY with:\n"
+            "  QUESTION: <your single clarifying question here>\n"
+            "- If you have enough information, respond ONLY with:\n"
+            "  ANSWER: <your full response here>"
+        )
+    )
+
+    response = llm.invoke([system_prompt] + state["messages"])
     ai_text = response.content.strip()
 
     if ai_text.startswith("QUESTION:"):
-        question = ai_text[len("QUESTION:"):].strip()
-        ret = {
-            "messages": [AIMessage(content=ai_text)], 
-            "question_for_user": question,             
-            "final_response": None,                    
+        question = ai_text[len("QUESTION:") :].strip()
+        return {
+            "messages": [AIMessage(content=ai_text)],
+            "question_for_user": question,
+            "final_response": None,
         }
-    else:
-        answer = ai_text[len("ANSWER:"):].strip() if ai_text.startswith("ANSWER:") else ai_text
-        ret = {
-            "messages": [AIMessage(content=ai_text)], 
-            "question_for_user": None,                 
-            "final_response": answer,                  
-        }
-    print(ret)
-    return ret
+
+    answer = ai_text[len("ANSWER:") :].strip() if ai_text.startswith("ANSWER:") else ai_text
+    return {
+        "messages": [AIMessage(content=ai_text)],
+        "question_for_user": None,
+        "final_response": answer,
+    }
+
 
 def check_if_question(state: GraphState) -> str:
     if state.get("question_for_user"):
-        return "ask_user"   
-    return "end"            
+        return "ask_user"
+    return "end"
+
 
 def ask_user_node(state: GraphState) -> GraphState:
     question = state["question_for_user"]
-    
-    # ---------------------------------------------------------
-    # PAUSE EXECUTION: The graph halts here.
-    # The dictionary passed into interrupt() is what the 
-    # Chainlit UI will receive as the 'value' of the interrupt.
-    # ---------------------------------------------------------
-    user_answer = interrupt({"question": question})
-
-    # When Chainlit resumes the graph, execution picks up right here,
-    # and user_answer equals whatever was passed into Command(resume=...)
+    user_answer = interrupt({"question": question, "type": "clarification"})
     return {
         "messages": [HumanMessage(content=user_answer)],
-        "question_for_user": None,   
+        "question_for_user": None,
         "final_response": None,
     }
 
-# ============================================================
-# 3. BUILD GRAPH (Must be instantiated per user session)
-# ============================================================
+
 def build_graph():
     builder = StateGraph(GraphState)
     builder.add_node("ai_node", ai_node)
     builder.add_node("ask_user", ask_user_node)
-    
+
     builder.add_edge(START, "ai_node")
     builder.add_conditional_edges("ai_node", check_if_question, {"ask_user": "ask_user", "end": END})
     builder.add_edge("ask_user", "ai_node")
-    
-    checkpointer = MemorySaver()
-    return builder.compile(checkpointer=checkpointer)
 
-# ============================================================
-# 4. CHAINLIT UI INTEGRATION
-# ============================================================
+    return builder.compile(checkpointer=MemorySaver())
 
-@cl.on_chat_start
-async def on_chat_start():
-    """Triggered when a user opens the Chainlit UI."""
-    # Create a fresh graph and thread ID for this user session
+
+def run_cli() -> None:
     graph = build_graph()
-    thread_id = cl.user_session.get("id")  # Unique ID generated by Chainlit
-    
-    # Store the graph and config in the session so we can access them later
-    cl.user_session.set("graph", graph)
-    cl.user_session.set("config", {"configurable": {"thread_id": thread_id}})
-    cl.user_session.set("is_interrupted", False)
+    config = {"configurable": {"thread_id": "human-in-the-loop-cli"}}
 
-@cl.on_message
-async def on_message(message: cl.Message):
-    """Triggered every time the user types a message in the UI."""
-    graph = cl.user_session.get("graph")
-    config = cl.user_session.get("config")
-    is_interrupted = cl.user_session.get("is_interrupted")
+    print("Human-in-the-loop CLI started. Type 'exit' to quit.")
+    pending_interrupt_id = None
 
-    # If the graph is currently paused waiting for the user...
-    if is_interrupted:
-        # Resume the graph by passing the user's message text into the interrupt
-        inputs = Command(resume=message.content)
-    else:
-        # Otherwise, start a fresh invocation
-        inputs = {"messages": [HumanMessage(content=message.content)]}
+    while True:
+        user_text = input("\nYou: ").strip()
+        if user_text.lower() in {"exit", "quit"}:
+            print("Bye.")
+            return
+        if not user_text:
+            continue
 
-    # Run the graph (this is synchronous; consider running in an executor for production async apps)
-    result = graph.invoke(inputs, config=config)
+        if pending_interrupt_id:
+            inputs = Command(resume={pending_interrupt_id: user_text})
+        else:
+            inputs = {"messages": [HumanMessage(content=user_text)]}
 
-    # Check the state of the graph to see if it paused or finished
-    state = graph.get_state(config)
-    
-    # LangGraph flags interrupted threads in the next attribute
-    if state.next and "ask_user" in state.next:
-        # The graph hit the interrupt() and is paused
-        cl.user_session.set("is_interrupted", True)
-        
-        # Get the question the AI asked (which we stored in the state)
-        question = state.values.get("question_for_user")
-        
-        # Display the question to the user in the UI
-        await cl.Message(author="AI (Needs Clarification)", content=question).send()
-        
-    else:
-        # The graph finished successfully (reached END)
-        cl.user_session.set("is_interrupted", False)
-        
-        # Get the final answer and display it
+        graph.invoke(inputs, config=config)
+        state = graph.get_state(config)
+
+        if state.interrupts:
+            matched = state.interrupts[0]
+            pending_interrupt_id = matched.id
+            question = None
+            if isinstance(matched.value, dict):
+                question = matched.value.get("question")
+            print(f"AI (Needs Clarification): {question or 'Need clarification.'}")
+            continue
+
+        pending_interrupt_id = None
         final_answer = state.values.get("final_response")
-        await cl.Message(author="AI", content=final_answer).send()
+        print(f"AI: {final_answer}")
+
+
+if __name__ == "__main__":
+    run_cli()

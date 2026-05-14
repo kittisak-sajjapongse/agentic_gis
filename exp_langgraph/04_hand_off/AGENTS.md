@@ -49,7 +49,7 @@ Before submitting changes:
 2. Quality
 - Run compile check:
   - `python -m py_compile $(rg --files -g '*.py')`
-- If behavior changed, run the relevant runtime path (CLI or Chainlit).
+- If behavior changed, run the relevant runtime path (CLI).
 
 3. Contract Safety
 - If state contracts changed, update `domain/state_models.py` first.
