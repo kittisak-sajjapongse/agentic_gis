@@ -5,47 +5,16 @@ from dotenv import load_dotenv
 import chainlit as cl
 from langgraph.types import Command
 from langchain_core.messages import HumanMessage
-from GraphInputRetrieval import (
+from graphs.input_retrieval_graph import (
     IR_CLARIFICATION_INTERRUPT_TYPE,
-    INPUT_RETRIEVAL_GRAPH_NAME,
-    IrState,
-    build_input_retrieval_graph,
 )
-from GroupOutputProducer import (
+from graphs.output_producer_graph import (
     OP_CLARIFICATION_INTERRUPT_TYPE,
     OUTPUT_PRODUCER_GRAPH_NAME,
-    OpState,
-    build_output_producer_graph,
 )
-from langgraph.graph import END, START, StateGraph
-from IAgentState import IAgentState
-from langgraph.checkpoint.memory import MemorySaver
+from graphs.main_graph import build_main_graph
 
 load_dotenv()
-
-
-async def build_main_graph():
-    workflow = StateGraph(IAgentState)
-    ir_graph = build_input_retrieval_graph()
-    op_graph = await build_output_producer_graph()
-
-    workflow.add_node(INPUT_RETRIEVAL_GRAPH_NAME, ir_graph)
-    workflow.add_node(OUTPUT_PRODUCER_GRAPH_NAME, op_graph)
-
-    workflow.add_edge(START, INPUT_RETRIEVAL_GRAPH_NAME)
-    workflow.add_conditional_edges(
-        INPUT_RETRIEVAL_GRAPH_NAME,
-        lambda state: state["is_query_accepted"],
-        {
-            True: OUTPUT_PRODUCER_GRAPH_NAME,
-            False: END,
-        }
-    )
-    workflow.add_edge(OUTPUT_PRODUCER_GRAPH_NAME, END)
-
-    return workflow.compile(checkpointer=MemorySaver())
-
-
 @cl.on_chat_start
 async def on_chat_start():
     graph = await build_main_graph()

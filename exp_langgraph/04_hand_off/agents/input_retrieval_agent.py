@@ -1,47 +1,26 @@
 import json
-from typing import Optional
+from datetime import datetime, timezone
+from typing import List
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_core.tools import tool
-from langchain_openai import ChatOpenAI
-from langgraph.graph import END, START, StateGraph
-from langgraph.prebuilt import ToolNode
-from langgraph.types import interrupt
+from langchain_core.messages import SystemMessage
+from langchain_core.tools import BaseTool
 
 from AgentBase import AgentBase
-from GisCollection import GIS_COLLECTION
-from IAgentState import IAgentState
-
-from datetime import datetime, timezone
-
-INPUT_RETRIEVAL_GRAPH_NAME = "INPUT_RETRIEVAL_GRAPH"
-IR_CLARIFICATION_INTERRUPT_TYPE = "ir_clarification"
+from domain.state_models import IAgentState
 
 
-class IrState(IAgentState):
-    clarification_question: Optional[str]
-    gis_related: Optional[bool]
-    decline_message: Optional[str]
-    general_layers: Optional[bool]
-
-
-@tool
-def search_gis_collection():
-    """
-    Retrieve entries of GIS layers in the collection
-    """
-    return json.dumps(GIS_COLLECTION)
-
-
-tools = [search_gis_collection]
-
-
-class IrManager(AgentBase[IrState]):
+class IrManager(AgentBase[IAgentState]):
     NAME = "INPUT_RETRIEVAL_MANAGER"
 
-    def __init__(self, llm: BaseChatModel, name: str = NAME):
+    def __init__(
+        self,
+        llm: BaseChatModel,
+        tools: List[BaseTool],
+        name: str = NAME,
+    ):
         super().__init__(llm, name)
+        self._tools = tools
         self._system_prompt = SystemMessage(
             content="""
         You are an expert technical manager in the area of Geographic Information System (GIS).
@@ -60,7 +39,7 @@ class IrManager(AgentBase[IrState]):
         6. Accept user's prompt only if (1) the prompt is GIS-related, and (2) all required layers can be found
         7. If the user's prompt is not accepted, add reason in the declining message
         8. If the user's prompt is accepted, rewrite summary of user's request once you find out more information from the user.
-        Note: 
+        Note:
         - Each task step can be an iterative loop where you ask questions to the user if there's any ambiguity or unclear statements until you have a clear idea what user the needs, then move to the next task step.
         - You may ask multiple questions in one response
 
@@ -92,12 +71,14 @@ class IrManager(AgentBase[IrState]):
         """
         )
 
-    def handleMessage(self, state: IrState):
-        llm_with_tools = self._llm.bind_tools(tools)
+    def handleMessage(self, state: IAgentState):
+        llm_with_tools = self._llm.bind_tools(self._tools)
 
         current_utc_time = datetime.now(timezone.utc)
         current_dt = current_utc_time.strftime("%Y-%m-%d %H:%M:%S %Z")
-        time_prompt = SystemMessage(content=f"\nFor your reference, the current date and time is: {current_dt}")
+        time_prompt = SystemMessage(
+            content=f"\nFor your reference, the current date and time is: {current_dt}"
+        )
 
         response = llm_with_tools.invoke([self._system_prompt, time_prompt] + state["_messages"])
         separate_line = "=" * 80
@@ -120,7 +101,6 @@ class IrManager(AgentBase[IrState]):
             "user_language": resp_js["user_language"],
             "query_summary": resp_js["query_summary"],
             "selected_layers": resp_js["selected_layers"],
-
             "clarification_question": resp_js["clarification_question"],
             "gis_related": resp_js["gis_related"],
             "decline_message": resp_js["decline_message"],
@@ -128,47 +108,3 @@ class IrManager(AgentBase[IrState]):
             "is_query_accepted": resp_js["is_query_accepted"],
             "_messages": [response],
         }
-
-
-def needs_tool_or_human(state: IrState) -> str:
-    if len(state["_messages"][-1].tool_calls) > 0:
-        return "tools"
-    if state.get("clarification_question") is not None:
-        return "ask_user"
-    return "end"
-
-
-def ask_user_node(state: IrState) -> dict:
-    # Use a typed interrupt payload so callers can reliably identify this exact
-    # pause reason even when multiple interrupt sources exist in the same thread.
-    user_answer = interrupt(
-        {
-            "type": IR_CLARIFICATION_INTERRUPT_TYPE,
-            "source": f"{INPUT_RETRIEVAL_GRAPH_NAME}.ask_user",
-            "question": state["clarification_question"],
-        }
-    )
-    return {
-        "_messages": [HumanMessage(content=user_answer)],
-        "clarification_question": None,
-    }
-
-
-def build_input_retrieval_graph():
-    workflow = StateGraph(IrState)
-    ir_manager = IrManager(ChatOpenAI(model="gpt-4o", temperature=0))
-
-    workflow.add_node(ir_manager.name, ir_manager)
-    workflow.add_node("tools", ToolNode(tools, messages_key="_messages"))
-    workflow.add_node("ask_user", ask_user_node)
-
-    workflow.add_edge(START, ir_manager.name)
-    workflow.add_conditional_edges(
-        ir_manager.name,
-        needs_tool_or_human,
-        {"tools": "tools", "ask_user": "ask_user", "end": END},
-    )
-    workflow.add_edge("tools", ir_manager.name)
-    workflow.add_edge("ask_user", ir_manager.name)
-
-    return workflow.compile()
