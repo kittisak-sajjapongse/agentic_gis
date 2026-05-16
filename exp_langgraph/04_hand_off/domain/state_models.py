@@ -81,3 +81,9 @@ class LayerDescriptor(BaseModel):
     origin: Literal["input", "agent_output"]
     createdByRunId: Optional[str] = None
     createdAt: str
+
+
+class LayerPatchRequest(BaseModel):
+    visible: Optional[bool] = None
+    opacity: Optional[float] = None
+    style: Optional[LayerStyle] = None

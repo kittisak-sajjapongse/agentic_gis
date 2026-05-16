@@ -12,7 +12,7 @@ Scope is proof-of-concept only.
 | [STORAGE-001](#STORAGE-001) | DONE | Codex | 2026-05-15 |
 | [BACKEND-003](#BACKEND-003) | DONE | Codex | 2026-05-16 |
 | [BACKEND-004](#BACKEND-004) | DONE | Codex | 2026-05-16 |
-| [BACKEND-005](#BACKEND-005) | TODO | Unassigned | - |
+| [BACKEND-005](#BACKEND-005) | DONE | Codex | 2026-05-16 |
 | [AGENT-001](#AGENT-001) | TODO | Unassigned | - |
 | [BACKEND-006](#BACKEND-006) | TODO | Unassigned | - |
 | [AGENT-002](#AGENT-002) | TODO | Unassigned | - |
@@ -144,7 +144,7 @@ Scope is proof-of-concept only.
 
 <a id="BACKEND-005"></a>
 
-## BACKEND-005 [TODO] - Add layer patch endpoint for UI state updates
+## BACKEND-005 [DONE] - Add layer patch endpoint for UI state updates
 **Component:** BACKEND
 
 **Goal**

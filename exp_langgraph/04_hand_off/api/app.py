@@ -8,6 +8,7 @@ from fastapi.responses import StreamingResponse
 
 from .layer_service import LayerService
 from .session_service import SessionService
+from domain.state_models import LayerPatchRequest
 from tools import LocalArtifactProvider
 
 
@@ -53,6 +54,7 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=404, detail="Session not found")
 
         layers = layer_service.list_layers(session_id)
+        # Pydantic v2: model_dump() serializes each model to a JSON-ready dict.
         return {"layers": [layer.model_dump() for layer in layers]}
 
     @app.get("/api/layers/{layer_id}")
@@ -60,6 +62,20 @@ def create_app() -> FastAPI:
         layer = layer_service.get_layer(layer_id)
         if layer is None:
             raise HTTPException(status_code=404, detail="Layer not found")
+        # model_dump() is used so the HTTP response is plain JSON data.
+        return layer.model_dump()
+
+    @app.patch("/api/layers/{layer_id}")
+    async def patch_layer(layer_id: str, patch: LayerPatchRequest) -> dict:
+        if patch.opacity is not None and not (0.0 <= patch.opacity <= 1.0):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid opacity: must be between 0.0 and 1.0",
+            )
+        layer = layer_service.update_layer(layer_id, patch)
+        if layer is None:
+            raise HTTPException(status_code=404, detail="Layer not found")
+        # model_dump() serializes the updated Pydantic model for response output.
         return layer.model_dump()
 
     @app.get("/api/artifacts/{artifact_id}/content")

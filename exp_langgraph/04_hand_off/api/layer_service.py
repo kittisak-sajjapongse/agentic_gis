@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import uuid4
 
-from domain.state_models import LayerDescriptor
+from domain.state_models import LayerDescriptor, LayerPatchRequest
 
 
 class LayerService:
@@ -22,6 +22,35 @@ class LayerService:
     def get_layer(self, layer_id: str) -> Optional[LayerDescriptor]:
         return self._layer_index.get(layer_id)
 
+    def update_layer(
+        self, layer_id: str, patch: LayerPatchRequest
+    ) -> Optional[LayerDescriptor]:
+        existing = self.get_layer(layer_id)
+        if existing is None:
+            return None
+
+        # Pydantic v2: model_dump() converts the patch model into a plain dict.
+        # exclude_none=True keeps only fields explicitly provided by the client.
+        updates = patch.model_dump(exclude_none=True)
+        if not updates:
+            return existing
+
+        # Pydantic v2: model_copy(update=...) creates a new model where only
+        # keys in `updates` are replaced; all other existing fields are preserved.
+        updated = existing.model_copy(update=updates)
+        self._layer_index[layer_id] = updated
+
+        for session_id, layers in self._layers_by_session.items():
+            for idx, layer in enumerate(layers):
+                if layer.id == layer_id:
+                    layers[idx] = updated
+                    break
+            else:
+                continue
+            break
+
+        return updated
+
     def add_layer(self, session_id: str, layer: LayerDescriptor) -> LayerDescriptor:
         self.init_session(session_id)
         self._layers_by_session[session_id].append(layer)
@@ -33,4 +62,3 @@ class LayerService:
 
     def now_iso(self) -> str:
         return datetime.now(timezone.utc).isoformat()
-
