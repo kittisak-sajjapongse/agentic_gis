@@ -13,7 +13,7 @@ Scope is proof-of-concept only.
 | [BACKEND-003](#BACKEND-003) | DONE | Codex | 2026-05-16 |
 | [BACKEND-004](#BACKEND-004) | DONE | Codex | 2026-05-16 |
 | [BACKEND-005](#BACKEND-005) | DONE | Codex | 2026-05-16 |
-| [AGENT-001](#AGENT-001) | TODO | Unassigned | - |
+| [AGENT-001](#AGENT-001) | DONE | Codex | 2026-05-16 |
 | [BACKEND-006](#BACKEND-006) | TODO | Unassigned | - |
 | [AGENT-002](#AGENT-002) | TODO | Unassigned | - |
 | [UI-001](#UI-001) | TODO | Unassigned | - |
@@ -166,7 +166,7 @@ Scope is proof-of-concept only.
 
 <a id="AGENT-001"></a>
 
-## AGENT-001 [TODO] - Create run orchestration API to invoke existing graph
+## AGENT-001 [DONE] - Create run orchestration API to invoke existing graph
 **Component:** AGENT
 
 **Goal**
