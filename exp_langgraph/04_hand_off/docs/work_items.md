@@ -10,7 +10,7 @@ Scope is proof-of-concept only.
 | [BACKEND-001](#BACKEND-001) | DONE | Codex | 2026-05-15 |
 | [BACKEND-002](#BACKEND-002) | DONE | Codex | 2026-05-15 |
 | [STORAGE-001](#STORAGE-001) | DONE | Codex | 2026-05-15 |
-| [BACKEND-003](#BACKEND-003) | TODO | Unassigned | - |
+| [BACKEND-003](#BACKEND-003) | DONE | Codex | 2026-05-16 |
 | [BACKEND-004](#BACKEND-004) | TODO | Unassigned | - |
 | [BACKEND-005](#BACKEND-005) | TODO | Unassigned | - |
 | [AGENT-001](#AGENT-001) | TODO | Unassigned | - |
@@ -96,7 +96,7 @@ Scope is proof-of-concept only.
 
 <a id="BACKEND-003"></a>
 
-## BACKEND-003 [TODO] - Expose artifact content API
+## BACKEND-003 [DONE] - Expose artifact content API
 **Component:** BACKEND
 
 **Goal**
