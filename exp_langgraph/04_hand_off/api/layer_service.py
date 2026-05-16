@@ -29,10 +29,14 @@ class LayerService:
         if existing is None:
             return None
 
+        # Pydantic v2: model_dump() converts the patch model into a plain dict.
+        # exclude_none=True keeps only fields explicitly provided by the client.
         updates = patch.model_dump(exclude_none=True)
         if not updates:
             return existing
 
+        # Pydantic v2: model_copy(update=...) creates a new model where only
+        # keys in `updates` are replaced; all other existing fields are preserved.
         updated = existing.model_copy(update=updates)
         self._layer_index[layer_id] = updated
 

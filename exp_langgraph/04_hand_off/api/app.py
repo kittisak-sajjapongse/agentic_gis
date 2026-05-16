@@ -54,6 +54,7 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=404, detail="Session not found")
 
         layers = layer_service.list_layers(session_id)
+        # Pydantic v2: model_dump() serializes each model to a JSON-ready dict.
         return {"layers": [layer.model_dump() for layer in layers]}
 
     @app.get("/api/layers/{layer_id}")
@@ -61,6 +62,7 @@ def create_app() -> FastAPI:
         layer = layer_service.get_layer(layer_id)
         if layer is None:
             raise HTTPException(status_code=404, detail="Layer not found")
+        # model_dump() is used so the HTTP response is plain JSON data.
         return layer.model_dump()
 
     @app.patch("/api/layers/{layer_id}")
@@ -73,6 +75,7 @@ def create_app() -> FastAPI:
         layer = layer_service.update_layer(layer_id, patch)
         if layer is None:
             raise HTTPException(status_code=404, detail="Layer not found")
+        # model_dump() serializes the updated Pydantic model for response output.
         return layer.model_dump()
 
     @app.get("/api/artifacts/{artifact_id}/content")
