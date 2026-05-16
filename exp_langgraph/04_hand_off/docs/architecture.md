@@ -122,6 +122,29 @@ The UI is added as a separate subdirectory (`ui/`) to keep backend architecture 
 
 ### 2.2 Core Data Contracts
 
+### 2.2.1 Two API Paths: `layers` vs `artifacts`
+
+The architecture intentionally separates metadata from raw content:
+
+1. `layers` path (`/api/sessions/:sessionId/layers`, `/api/layers/:layerId`)
+- Returns `LayerDescriptor` metadata used by UI state and map configuration.
+- Includes logical fields such as `name`, `kind`, `style`, `visible`, `origin`, `bounds`.
+- Contains a source reference URL (usually artifact-backed), but does not return large file bytes.
+
+2. `artifacts` path (`/api/artifacts/:artifactId/content`)
+- Returns raw bytes/content stream for registered artifacts.
+- Used by map/data consumers when actual file content is needed.
+- Backed by `ArtifactProvider` (local filesystem in POC; S3-compatible storage later).
+
+Ownership boundary:
+- Layer registry/service owns map/business metadata.
+- Artifact provider owns storage lookup and content streaming.
+
+Request flow:
+1. UI gets layer descriptors from `layers` endpoints.
+2. UI reads `source.url` from each descriptor.
+3. UI/map fetches content from `artifacts` endpoint when rendering/loading data.
+
 #### LayerDescriptor
 
 ```json
