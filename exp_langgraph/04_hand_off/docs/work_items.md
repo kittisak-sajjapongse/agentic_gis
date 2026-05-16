@@ -11,7 +11,7 @@ Scope is proof-of-concept only.
 | [BACKEND-002](#BACKEND-002) | DONE | Codex | 2026-05-15 |
 | [STORAGE-001](#STORAGE-001) | DONE | Codex | 2026-05-15 |
 | [BACKEND-003](#BACKEND-003) | DONE | Codex | 2026-05-16 |
-| [BACKEND-004](#BACKEND-004) | TODO | Unassigned | - |
+| [BACKEND-004](#BACKEND-004) | DONE | Codex | 2026-05-16 |
 | [BACKEND-005](#BACKEND-005) | TODO | Unassigned | - |
 | [AGENT-001](#AGENT-001) | TODO | Unassigned | - |
 | [BACKEND-006](#BACKEND-006) | TODO | Unassigned | - |
@@ -119,7 +119,7 @@ Scope is proof-of-concept only.
 
 <a id="BACKEND-004"></a>
 
-## BACKEND-004 [TODO] - Add layer domain contract and registry service
+## BACKEND-004 [DONE] - Add layer domain contract and registry service
 **Component:** BACKEND
 
 **Goal**

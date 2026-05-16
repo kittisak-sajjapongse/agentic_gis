@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Any, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 from uuid import uuid4
 
 from pydantic import BaseModel
@@ -56,3 +56,28 @@ class SessionModel(BaseModel):
             status="active",
             createdAt=datetime.now(timezone.utc).isoformat(),
         )
+
+
+class LayerSource(BaseModel):
+    type: str
+    url: str
+
+
+class LayerStyle(BaseModel):
+    preset: Optional[str] = None
+    paint: Optional[Dict[str, Any]] = None
+    layout: Optional[Dict[str, Any]] = None
+
+
+class LayerDescriptor(BaseModel):
+    id: str
+    name: str
+    kind: Literal["geojson", "vector", "raster", "cog", "wms"]
+    source: LayerSource
+    style: LayerStyle
+    visible: bool = True
+    opacity: Optional[float] = None
+    bounds: Optional[List[float]] = None
+    origin: Literal["input", "agent_output"]
+    createdByRunId: Optional[str] = None
+    createdAt: str
