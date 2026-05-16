@@ -1,4 +1,6 @@
+from datetime import datetime, timezone
 from typing import Any, List, Literal, Optional
+from uuid import uuid4
 
 from pydantic import BaseModel
 
@@ -39,3 +41,18 @@ class OpState(IAgentState):
     decline_message: Optional[str]
     outputs: Optional[List[OpOutput]]
     code: Optional[str]
+
+
+class SessionModel(BaseModel):
+    sessionId: str
+    status: Literal["active", "closed"] = "active"
+    createdAt: str
+    lastRunId: Optional[str] = None
+
+    @classmethod
+    def create(cls) -> "SessionModel":
+        return cls(
+            sessionId=f"sess_{uuid4().hex[:12]}",
+            status="active",
+            createdAt=datetime.now(timezone.utc).isoformat(),
+        )

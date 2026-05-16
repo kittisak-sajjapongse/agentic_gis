@@ -8,7 +8,7 @@ Scope is proof-of-concept only.
 | Item | Status | Owner | Updated |
 |---|---|---|---|
 | [BACKEND-001](#BACKEND-001) | DONE | Codex | 2026-05-15 |
-| [BACKEND-002](#BACKEND-002) | TODO | Unassigned | - |
+| [BACKEND-002](#BACKEND-002) | DONE | Codex | 2026-05-15 |
 | [STORAGE-001](#STORAGE-001) | TODO | Unassigned | - |
 | [BACKEND-003](#BACKEND-003) | TODO | Unassigned | - |
 | [BACKEND-004](#BACKEND-004) | TODO | Unassigned | - |
@@ -49,7 +49,7 @@ Scope is proof-of-concept only.
 
 <a id="BACKEND-002"></a>
 
-## BACKEND-002 [TODO] - Add session creation and fetch APIs
+## BACKEND-002 [DONE] - Add session creation and fetch APIs
 **Component:** BACKEND
 
 **Goal**
