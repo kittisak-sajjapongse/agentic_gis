@@ -16,7 +16,7 @@ This example is structured so each layer has one responsibility:
 - `tools/`: tool providers and reusable tool execution node
 - `graphs/`: graph topology/routing and top-level graph composition
 - `runtime/`: environment settings and dependency construction
-- `main.py` / `main_cli.py`: UI/CLI entrypoints only
+- `main.py` / `main_cli.py`: CLI entrypoints only
 
 ## Directory Structure
 
@@ -44,7 +44,7 @@ This example is structured so each layer has one responsibility:
 │  ├─ settings.py                   # AppSettings.from_env()
 │  ├─ container.py                  # AppContainer factories
 │  └─ __init__.py
-├─ main.py                          # Chainlit app
+├─ main.py                          # CLI launcher
 ├─ main_cli.py                      # CLI app
 └─ mcp_server.py                    # Docker-backed MCP server
 ```
@@ -88,14 +88,9 @@ No business data definitions in graph modules.
 
 ## Run
 
-### Chainlit
-```bash
-chainlit run main.py
-```
-
 ### CLI
 ```bash
-python main_cli.py
+python main.py
 ```
 
 ### MCP server (Docker tools)
