@@ -93,6 +93,11 @@ No business data definitions in graph modules.
 python main.py
 ```
 
+### HTTP API (POC)
+```bash
+python main_api.py
+```
+
 ### MCP server (Docker tools)
 ```bash
 python mcp_server.py

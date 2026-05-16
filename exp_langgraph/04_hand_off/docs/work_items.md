@@ -7,7 +7,7 @@ Scope is proof-of-concept only.
 
 | Item | Status | Owner | Updated |
 |---|---|---|---|
-| [BACKEND-001](#BACKEND-001) | TODO | Unassigned | - |
+| [BACKEND-001](#BACKEND-001) | DONE | Codex | 2026-05-15 |
 | [BACKEND-002](#BACKEND-002) | TODO | Unassigned | - |
 | [STORAGE-001](#STORAGE-001) | TODO | Unassigned | - |
 | [BACKEND-003](#BACKEND-003) | TODO | Unassigned | - |
@@ -26,7 +26,7 @@ Scope is proof-of-concept only.
 
 <a id="BACKEND-001"></a>
 
-## BACKEND-001 [TODO] - Create HTTP API skeleton and health endpoint
+## BACKEND-001 [DONE] - Create HTTP API skeleton and health endpoint
 **Component:** BACKEND
 
 **Goal**
