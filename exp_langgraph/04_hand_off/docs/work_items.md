@@ -9,7 +9,7 @@ Scope is proof-of-concept only.
 |---|---|---|---|
 | [BACKEND-001](#BACKEND-001) | DONE | Codex | 2026-05-15 |
 | [BACKEND-002](#BACKEND-002) | DONE | Codex | 2026-05-15 |
-| [STORAGE-001](#STORAGE-001) | TODO | Unassigned | - |
+| [STORAGE-001](#STORAGE-001) | DONE | Codex | 2026-05-15 |
 | [BACKEND-003](#BACKEND-003) | TODO | Unassigned | - |
 | [BACKEND-004](#BACKEND-004) | TODO | Unassigned | - |
 | [BACKEND-005](#BACKEND-005) | TODO | Unassigned | - |
@@ -73,7 +73,7 @@ Scope is proof-of-concept only.
 
 <a id="STORAGE-001"></a>
 
-## STORAGE-001 [TODO] - Implement local artifact provider abstraction
+## STORAGE-001 [DONE] - Implement local artifact provider abstraction
 **Component:** STORAGE
 
 **Goal**
