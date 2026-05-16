@@ -1,15 +1,20 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import BinaryIO
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 
 from .session_service import SessionService
+from tools import LocalArtifactProvider
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title="04_hand_off API", version="0.1.0")
     session_service = SessionService()
+    artifact_provider = LocalArtifactProvider()
+    app.state.artifact_provider = artifact_provider
 
     @app.get("/api/health")
     async def health() -> dict[str, str]:
@@ -36,6 +41,15 @@ def create_app() -> FastAPI:
             "status": session.status,
             "lastRunId": session.lastRunId,
         }
+
+    @app.get("/api/artifacts/{artifact_id}/content")
+    async def get_artifact_content(artifact_id: str) -> StreamingResponse:
+        metadata = artifact_provider.get_metadata(artifact_id)
+        if metadata is None:
+            raise HTTPException(status_code=404, detail="Artifact not found")
+
+        file_handle: BinaryIO = artifact_provider.open_content(artifact_id)
+        return StreamingResponse(file_handle, media_type=metadata.content_type)
 
     return app
 
