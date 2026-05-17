@@ -14,7 +14,7 @@ Scope is proof-of-concept only.
 | [BACKEND-004](#BACKEND-004) | DONE | Codex | 2026-05-16 |
 | [BACKEND-005](#BACKEND-005) | DONE | Codex | 2026-05-16 |
 | [AGENT-001](#AGENT-001) | DONE | Codex | 2026-05-16 |
-| [BACKEND-006](#BACKEND-006) | TODO | Unassigned | - |
+| [BACKEND-006](#BACKEND-006) | DONE | Codex | 2026-05-16 |
 | [AGENT-002](#AGENT-002) | TODO | Unassigned | - |
 | [UI-001](#UI-001) | TODO | Unassigned | - |
 | [UI-002](#UI-002) | TODO | Unassigned | - |
@@ -189,7 +189,7 @@ Scope is proof-of-concept only.
 
 <a id="BACKEND-006"></a>
 
-## BACKEND-006 [TODO] - Add SSE stream endpoint for run events
+## BACKEND-006 [DONE] - Add SSE stream endpoint for run events
 **Component:** BACKEND
 
 **Goal**
