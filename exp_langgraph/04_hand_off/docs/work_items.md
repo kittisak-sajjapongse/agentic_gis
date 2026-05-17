@@ -22,6 +22,8 @@ Scope is proof-of-concept only.
 | [UI-004](#UI-004) | TODO | Unassigned | - |
 | [BACKEND-007](#BACKEND-007) | TODO | Unassigned | - |
 | [BACKEND-008](#BACKEND-008) | TODO | Unassigned | - |
+| [BACKEND-009](#BACKEND-009) | TODO | Unassigned | - |
+| [UI-005](#UI-005) | TODO | Unassigned | - |
 | [QA-001](#QA-001) | TODO | Unassigned | - |
 
 <a id="BACKEND-001"></a>
@@ -371,6 +373,52 @@ Scope is proof-of-concept only.
 1. Create session and run that generates output layer.
 2. Restart backend.
 3. Fetch session/layers again and confirm data remains.
+
+---
+
+<a id="BACKEND-009"></a>
+
+## BACKEND-009 [TODO] - Add run resume/reconnect by `runId`
+**Component:** BACKEND
+
+**Goal**
+- Allow UI to reconnect to in-flight or completed runs without losing progress visibility.
+
+**Deliverables**
+- Stable run lookup + stream resume behavior by `runId`.
+- `GET /api/runs/:runId` and `GET /api/runs/:runId/stream` support reconnect after UI refresh.
+
+**Acceptance Criteria**
+- If UI disconnects during a run, reconnecting with same `runId` resumes visibility of state/events.
+- Completed runs can still be queried for terminal status and summary metadata.
+
+**Verification**
+1. Start a run and capture `runId`.
+2. Disconnect UI or refresh page mid-run.
+3. Reconnect using same `runId` and verify continued status visibility to terminal state.
+
+---
+
+<a id="UI-005"></a>
+
+## UI-005 [TODO] - Add long-running notice (10 minutes) without aborting run
+**Component:** UI
+
+**Goal**
+- Improve operator awareness for long jobs while preserving completion-oriented behavior.
+
+**Deliverables**
+- Non-blocking chat notice when a run exceeds 10 minutes.
+- No client-side cancellation/timeout triggered by this notice.
+
+**Acceptance Criteria**
+- At 10 minutes, UI shows a clear “still running” informational message.
+- SSE/run tracking continues normally and can still reach `done`/`error`.
+
+**Verification**
+1. Simulate or run a long job (>10 minutes).
+2. Confirm the notice appears at approximately 10 minutes.
+3. Confirm run continues and terminal event is still processed.
 
 ---
 
