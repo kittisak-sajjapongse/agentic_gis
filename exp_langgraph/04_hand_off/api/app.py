@@ -103,6 +103,8 @@ def create_app() -> FastAPI:
                 session_id=session_id,
                 run_id=run.runId,
                 message=payload.message,
+                layer_service=layer_service,
+                artifact_provider=artifact_provider,
             )
         )
         return {"runId": run.runId}

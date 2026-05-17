@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, AsyncIterator
 from uuid import uuid4
 
 from langchain_core.messages import HumanMessage
 
-from domain.state_models import RunModel
+from api.layer_service import LayerService
+from domain.state_models import LayerDescriptor, LayerSource, LayerStyle, RunModel
 from graphs.main_graph import build_main_graph
+from tools.artifact_provider import ArtifactProvider
 
 
 class RunService:
@@ -76,6 +79,74 @@ class RunService:
             }
         return None
 
+    def _build_layer_from_output(
+        self,
+        session_id: str,
+        run_id: str,
+        output: dict[str, Any],
+        layer_service: LayerService,
+        artifact_provider: ArtifactProvider,
+    ) -> LayerDescriptor | None:
+        output_path = output.get("path")
+        output_type = output.get("output_type")
+        description = output.get("description", "Generated output layer")
+        if not isinstance(output_path, str) or not output_path:
+            return None
+
+        # Normalize '/data/..' outputs to current workspace relative path for POC.
+        normalized_path = (
+            str(Path.cwd() / output_path.removeprefix("/data/"))
+            if output_path.startswith("/data/")
+            else output_path
+        )
+        file_path = Path(normalized_path)
+        if not file_path.exists() or not file_path.is_file():
+            return None
+
+        suffix = file_path.suffix.lower()
+        content_type = "application/octet-stream"
+        kind = "geojson"
+        source_type = "geojson"
+        style = LayerStyle(preset="line-default")
+
+        if output_type == "GEOTIFF_LAYER" or suffix in {".tif", ".tiff"}:
+            content_type = "image/tiff"
+            kind = "raster"
+            source_type = "raster"
+            style = LayerStyle(preset="raster-default")
+        elif output_type == "GEOPARQUET_LAYER" or suffix == ".parquet":
+            content_type = "application/vnd.apache.parquet"
+            kind = "geojson"
+            source_type = "geojson"
+            style = LayerStyle(preset="line-default")
+        elif suffix == ".geojson":
+            content_type = "application/geo+json"
+            kind = "geojson"
+            source_type = "geojson"
+            style = LayerStyle(preset="line-default")
+
+        artifact = artifact_provider.register_artifact(
+            path=str(file_path),
+            content_type=content_type,
+        )
+        layer_id = layer_service.create_layer_id(prefix="lyr_out")
+        layer = LayerDescriptor(
+            id=layer_id,
+            name=description,
+            kind=kind,  # type: ignore[arg-type]
+            source=LayerSource(
+                type=source_type,
+                url=f"/api/artifacts/{artifact.artifact_id}/content",
+            ),
+            style=style,
+            visible=True,
+            origin="agent_output",
+            createdByRunId=run_id,
+            createdAt=layer_service.now_iso(),
+        )
+        layer_service.add_layer(session_id, layer)
+        return layer
+
     def subscribe(self, run_id: str) -> AsyncIterator[dict[str, Any]]:
         """Subscribe to run events as an async iterator for SSE streaming.
 
@@ -142,7 +213,14 @@ class RunService:
 
         return _iter()
 
-    async def execute_run(self, session_id: str, run_id: str, message: str) -> None:
+    async def execute_run(
+        self,
+        session_id: str,
+        run_id: str,
+        message: str,
+        layer_service: LayerService | None = None,
+        artifact_provider: ArtifactProvider | None = None,
+    ) -> None:
         """Execute one chat run against LangGraph and publish run events.
 
         Status source of truth:
@@ -165,6 +243,26 @@ class RunService:
                 pass
 
             state = await graph.aget_state(config)
+            if layer_service is not None and artifact_provider is not None:
+                outputs = state.values.get("outputs") if state and state.values else None
+                if isinstance(outputs, list):
+                    for output in outputs:
+                        if not isinstance(output, dict):
+                            continue
+                        layer = self._build_layer_from_output(
+                            session_id=session_id,
+                            run_id=run_id,
+                            output=output,
+                            layer_service=layer_service,
+                            artifact_provider=artifact_provider,
+                        )
+                        if layer is not None:
+                            self._emit_event(
+                                run_id,
+                                "layer_created",
+                                {"layerId": layer.id},
+                            )
+
             if state.interrupts:
                 self._update_run(
                     run_id,

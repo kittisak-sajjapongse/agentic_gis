@@ -15,7 +15,7 @@ Scope is proof-of-concept only.
 | [BACKEND-005](#BACKEND-005) | DONE | Codex | 2026-05-16 |
 | [AGENT-001](#AGENT-001) | DONE | Codex | 2026-05-16 |
 | [BACKEND-006](#BACKEND-006) | DONE | Codex | 2026-05-16 |
-| [AGENT-002](#AGENT-002) | TODO | Unassigned | - |
+| [AGENT-002](#AGENT-002) | DONE | Codex | 2026-05-16 |
 | [UI-001](#UI-001) | TODO | Unassigned | - |
 | [UI-002](#UI-002) | TODO | Unassigned | - |
 | [UI-003](#UI-003) | TODO | Unassigned | - |
@@ -212,7 +212,7 @@ Scope is proof-of-concept only.
 
 <a id="AGENT-002"></a>
 
-## AGENT-002 [TODO] - Emit `layer_created` events and persist output layers
+## AGENT-002 [DONE] - Emit `layer_created` events and persist output layers
 **Component:** AGENT
 
 **Goal**
