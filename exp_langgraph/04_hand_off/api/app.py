@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
+import json
 from typing import BinaryIO
 
 from fastapi import FastAPI, HTTPException
@@ -112,6 +113,21 @@ def create_app() -> FastAPI:
         if run is None:
             raise HTTPException(status_code=404, detail="Run not found")
         return run.model_dump()
+
+    @app.get("/api/runs/{run_id}/stream")
+    async def stream_run(run_id: str) -> StreamingResponse:
+        if run_service.get_run(run_id) is None:
+            raise HTTPException(status_code=404, detail="Run not found")
+
+        async def event_generator():
+            async for event in run_service.subscribe(run_id):
+                yield f"event: {event['type']}\n"
+                yield f"data: {json.dumps(event)}\n\n"
+
+        return StreamingResponse(
+            event_generator(),
+            media_type="text/event-stream",
+        )
 
     @app.get("/api/artifacts/{artifact_id}/content")
     async def get_artifact_content(artifact_id: str) -> StreamingResponse:
