@@ -103,6 +103,9 @@ export function App() {
   const [chatInput, setChatInput] = useState<string>('');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatBusy, setChatBusy] = useState<boolean>(false);
+  // TODO(PROD): When persistent thread history/long-term memory is introduced,
+  // evaluate migrating chat surface to assistant-ui primitives for richer
+  // thread navigation, message lifecycle handling, and lower UI maintenance.
   const eventSourceRef = useRef<EventSource | null>(null);
 
   // Note: these effects are intentionally separate (not merged into one effect)
