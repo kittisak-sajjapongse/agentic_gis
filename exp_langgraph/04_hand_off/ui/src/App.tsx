@@ -36,6 +36,7 @@ type LayerDescriptor = {
 function HealthBadge() {
   const [health, setHealth] = useState<HealthState>({ state: 'loading' });
 
+  // Runs on mount to check backend health once and update badge state.
   useEffect(() => {
     let mounted = true;
 
@@ -85,6 +86,11 @@ export function App() {
   const [layerLoading, setLayerLoading] = useState<boolean>(true);
   const [layerError, setLayerError] = useState<string | null>(null);
 
+  // Note: these effects are intentionally separate (not merged into one effect)
+  // because they have different triggers/lifecycles (mount, session change,
+  // layer change) and different cleanup semantics.
+
+  // Runs on mount to create a new backend session and store sessionId in state.
   useEffect(() => {
     async function bootstrapSession() {
       setLayerError(null);
@@ -109,6 +115,7 @@ export function App() {
     bootstrapSession();
   }, []);
 
+  // Runs whenever sessionId changes; fetches all layers for that session.
   useEffect(() => {
     if (!sessionId) return;
 
@@ -133,6 +140,7 @@ export function App() {
     loadLayers();
   }, [sessionId]);
 
+  // Runs on mount to initialize MapLibre and registers cleanup on unmount.
   useEffect(() => {
     if (mapRef.current || !mapContainerRef.current) {
       return;
@@ -154,6 +162,7 @@ export function App() {
     };
   }, []);
 
+  // Runs whenever `layers` changes; syncs API layer visibility/sources into map.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
