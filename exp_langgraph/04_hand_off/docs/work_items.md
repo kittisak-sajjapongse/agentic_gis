@@ -17,7 +17,7 @@ Scope is proof-of-concept only.
 | [BACKEND-006](#BACKEND-006) | DONE | Codex | 2026-05-16 |
 | [AGENT-002](#AGENT-002) | DONE | Codex | 2026-05-16 |
 | [UI-001](#UI-001) | DONE | Codex | 2026-05-16 |
-| [UI-002](#UI-002) | TODO | Unassigned | - |
+| [UI-002](#UI-002) | DONE | Codex | 2026-05-17 |
 | [UI-003](#UI-003) | TODO | Unassigned | - |
 | [UI-004](#UI-004) | TODO | Unassigned | - |
 | [BACKEND-007](#BACKEND-007) | TODO | Unassigned | - |
@@ -258,7 +258,7 @@ Scope is proof-of-concept only.
 
 <a id="UI-002"></a>
 
-## UI-002 [TODO] - Integrate MapLibre with session layer listing
+## UI-002 [DONE] - Integrate MapLibre with session layer listing
 **Component:** UI
 
 **Goal**
