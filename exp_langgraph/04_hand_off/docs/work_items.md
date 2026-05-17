@@ -18,7 +18,7 @@ Scope is proof-of-concept only.
 | [AGENT-002](#AGENT-002) | DONE | Codex | 2026-05-16 |
 | [UI-001](#UI-001) | DONE | Codex | 2026-05-16 |
 | [UI-002](#UI-002) | DONE | Codex | 2026-05-17 |
-| [UI-003](#UI-003) | TODO | Unassigned | - |
+| [UI-003](#UI-003) | DONE | Codex | 2026-05-17 |
 | [UI-004](#UI-004) | TODO | Unassigned | - |
 | [BACKEND-007](#BACKEND-007) | TODO | Unassigned | - |
 | [BACKEND-008](#BACKEND-008) | TODO | Unassigned | - |
@@ -282,7 +282,7 @@ Scope is proof-of-concept only.
 
 <a id="UI-003"></a>
 
-## UI-003 [TODO] - Integrate assistant-ui chat + run streaming
+## UI-003 [DONE] - Integrate assistant-ui chat + run streaming
 **Component:** UI
 
 **Goal**

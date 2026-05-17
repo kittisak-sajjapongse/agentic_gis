@@ -3,7 +3,9 @@ from __future__ import annotations
 import os
 
 import uvicorn
+from dotenv import load_dotenv
 
+load_dotenv()
 
 def main() -> None:
     host = os.getenv("API_HOST", "127.0.0.1")
@@ -13,4 +15,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

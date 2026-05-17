@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
+import logging
+import traceback
 from typing import Any, AsyncIterator
 from uuid import uuid4
 
@@ -12,6 +14,8 @@ from api.layer_service import LayerService
 from domain.state_models import LayerDescriptor, LayerSource, LayerStyle, RunModel
 from graphs.main_graph import build_main_graph
 from tools.artifact_provider import ArtifactProvider
+
+logger = logging.getLogger(__name__)
 
 
 class RunService:
@@ -78,6 +82,26 @@ class RunService:
                 },
             }
         return None
+
+    def _actionable_error_message(self, exc: Exception) -> str:
+        msg = str(exc)
+        lowered = msg.lower()
+        if "api_key" in lowered or "openai_api_key" in lowered:
+            return (
+                "Missing OpenAI API key. Set OPENAI_API_KEY in .env or env vars, "
+                "then restart the API server."
+            )
+        if "all connection attempts failed" in lowered or "connecterror" in lowered:
+            return (
+                "Failed to connect to MCP SSE server. Start mcp_server.py and/or set "
+                "MCP_SERVER_URL to a reachable endpoint, then retry."
+            )
+        if "taskgroup" in lowered:
+            return (
+                "A background task group failed. Check the traceback above for the "
+                "first nested exception (often MCP/OpenAI connectivity)."
+            )
+        return "Run failed. Check traceback in backend logs for root cause."
 
     def _build_layer_from_output(
         self,
@@ -297,6 +321,15 @@ class RunService:
                 {"status": "completed"},
             )
         except Exception as exc:
+            actionable = self._actionable_error_message(exc)
+            logger.exception(
+                "Run failed run_id=%s session_id=%s error=%s actionable=%s\n%s",
+                run_id,
+                session_id,
+                str(exc),
+                actionable,
+                traceback.format_exc(),
+            )
             self._update_run(
                 run_id,
                 status="failed",
@@ -311,5 +344,5 @@ class RunService:
             self._emit_event(
                 run_id,
                 "error",
-                {"message": str(exc)},
+                {"message": str(exc), "actionable": actionable},
             )

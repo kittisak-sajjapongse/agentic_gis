@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import maplibregl, { Map as MapLibreMap } from 'maplibre-gl';
 
 type HealthResponse = {
@@ -31,6 +31,20 @@ type LayerDescriptor = {
   style: LayerStyle;
   visible: boolean;
   origin: 'input' | 'agent_output';
+};
+
+type ChatMessage = {
+  id: string;
+  role: 'user' | 'system';
+  text: string;
+};
+
+type SseEventPayload = {
+  type: string;
+  runId: string;
+  sessionId: string;
+  timestamp: string;
+  payload: Record<string, unknown>;
 };
 
 function HealthBadge() {
@@ -86,6 +100,11 @@ export function App() {
   const [layerLoading, setLayerLoading] = useState<boolean>(true);
   const [layerError, setLayerError] = useState<string | null>(null);
 
+  const [chatInput, setChatInput] = useState<string>('');
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatBusy, setChatBusy] = useState<boolean>(false);
+  const eventSourceRef = useRef<EventSource | null>(null);
+
   // Note: these effects are intentionally separate (not merged into one effect)
   // because they have different triggers/lifecycles (mount, session change,
   // layer change) and different cleanup semantics.
@@ -118,26 +137,7 @@ export function App() {
   // Runs whenever sessionId changes; fetches all layers for that session.
   useEffect(() => {
     if (!sessionId) return;
-
-    async function loadLayers() {
-      setLayerLoading(true);
-      setLayerError(null);
-      try {
-        const response = await fetch(`/api/sessions/${sessionId}/layers`);
-        if (!response.ok) {
-          throw new Error(`Unable to fetch layers: HTTP ${response.status}`);
-        }
-        const payload = (await response.json()) as { layers: LayerDescriptor[] };
-        setLayers(payload.layers);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown layer load error';
-        setLayerError(message);
-      } finally {
-        setLayerLoading(false);
-      }
-    }
-
-    loadLayers();
+    void reloadLayers(sessionId);
   }, [sessionId]);
 
   // Runs on mount to initialize MapLibre and registers cleanup on unmount.
@@ -224,11 +224,36 @@ export function App() {
     }
   }, [layers]);
 
+  // Runs on unmount to close open SSE stream.
+  useEffect(() => {
+    return () => {
+      eventSourceRef.current?.close();
+    };
+  }, []);
+
   const inputLayers = useMemo(() => layers.filter((layer) => layer.origin === 'input'), [layers]);
   const outputLayers = useMemo(
     () => layers.filter((layer) => layer.origin === 'agent_output'),
     [layers]
   );
+
+  async function reloadLayers(currentSessionId: string) {
+    setLayerLoading(true);
+    setLayerError(null);
+    try {
+      const response = await fetch(`/api/sessions/${currentSessionId}/layers`);
+      if (!response.ok) {
+        throw new Error(`Unable to fetch layers: HTTP ${response.status}`);
+      }
+      const payload = (await response.json()) as { layers: LayerDescriptor[] };
+      setLayers(payload.layers);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown layer load error';
+      setLayerError(message);
+    } finally {
+      setLayerLoading(false);
+    }
+  }
 
   async function toggleLayer(layerId: string, nextVisible: boolean) {
     setLayerError(null);
@@ -255,6 +280,82 @@ export function App() {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown patch error';
       setLayerError(message);
+    }
+  }
+
+  async function submitChat(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!sessionId || !chatInput.trim() || chatBusy) return;
+
+    const text = chatInput.trim();
+    setChatInput('');
+    setChatBusy(true);
+    setChatMessages((prev) => [...prev, { id: crypto.randomUUID(), role: 'user', text }]);
+
+    eventSourceRef.current?.close();
+
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+      });
+      if (!response.ok) {
+        throw new Error(`Chat start failed: HTTP ${response.status}`);
+      }
+      const payload = (await response.json()) as { runId: string };
+      const runId = payload.runId;
+
+      setChatMessages((prev) => [
+        ...prev,
+        { id: crypto.randomUUID(), role: 'system', text: `Run started: ${runId}` },
+      ]);
+
+      const es = new EventSource(`/api/runs/${runId}/stream`);
+      eventSourceRef.current = es;
+
+      const onAnyEvent = async (eventName: string, ev: MessageEvent) => {
+        const data = JSON.parse(ev.data) as SseEventPayload;
+        if (eventName === 'layer_created' && sessionId) {
+          await reloadLayers(sessionId);
+        }
+
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: 'system',
+            text: `${eventName}: ${JSON.stringify(data.payload)}`,
+          },
+        ]);
+
+        if (eventName === 'done' || eventName === 'error') {
+          setChatBusy(false);
+          es.close();
+          if (eventSourceRef.current === es) {
+            eventSourceRef.current = null;
+          }
+        }
+      };
+
+      ['message', 'tool_start', 'tool_end', 'layer_created', 'done', 'error'].forEach((name) => {
+        es.addEventListener(name, (ev) => {
+          void onAnyEvent(name, ev as MessageEvent);
+        });
+      });
+
+      es.onerror = () => {
+        setChatMessages((prev) => [
+          ...prev,
+          { id: crypto.randomUUID(), role: 'system', text: 'SSE connection error' },
+        ]);
+        setChatBusy(false);
+        es.close();
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown chat error';
+      setChatMessages((prev) => [...prev, { id: crypto.randomUUID(), role: 'system', text: message }]);
+      setChatBusy(false);
     }
   }
 
@@ -290,7 +391,25 @@ export function App() {
 
         <aside className="panel right">
           <h2>Chat Pane</h2>
-          <p>assistant-ui chat integration will be added in later work items.</p>
+          <form className="chat-form" onSubmit={submitChat}>
+            <input
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              placeholder="Ask the agent..."
+              disabled={!sessionId || chatBusy}
+            />
+            <button type="submit" disabled={!sessionId || !chatInput.trim() || chatBusy}>
+              {chatBusy ? 'Running...' : 'Send'}
+            </button>
+          </form>
+          <div className="chat-log">
+            {chatMessages.length === 0 ? <p className="muted">No messages yet.</p> : null}
+            {chatMessages.map((msg) => (
+              <div key={msg.id} className={`chat-msg ${msg.role}`}>
+                <strong>{msg.role === 'user' ? 'You' : 'System'}:</strong> {msg.text}
+              </div>
+            ))}
+          </div>
         </aside>
       </main>
     </div>
