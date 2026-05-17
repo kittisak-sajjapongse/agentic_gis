@@ -16,7 +16,7 @@ Scope is proof-of-concept only.
 | [AGENT-001](#AGENT-001) | DONE | Codex | 2026-05-16 |
 | [BACKEND-006](#BACKEND-006) | DONE | Codex | 2026-05-16 |
 | [AGENT-002](#AGENT-002) | DONE | Codex | 2026-05-16 |
-| [UI-001](#UI-001) | TODO | Unassigned | - |
+| [UI-001](#UI-001) | DONE | Codex | 2026-05-16 |
 | [UI-002](#UI-002) | TODO | Unassigned | - |
 | [UI-003](#UI-003) | TODO | Unassigned | - |
 | [UI-004](#UI-004) | TODO | Unassigned | - |
@@ -235,7 +235,7 @@ Scope is proof-of-concept only.
 
 <a id="UI-001"></a>
 
-## UI-001 [TODO] - Bootstrap React + TypeScript app shell
+## UI-001 [DONE] - Bootstrap React + TypeScript app shell
 **Component:** UI
 
 **Goal**
