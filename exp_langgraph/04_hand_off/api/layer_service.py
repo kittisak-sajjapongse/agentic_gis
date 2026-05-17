@@ -9,6 +9,9 @@ from domain.state_models import LayerDescriptor, LayerPatchRequest
 
 class LayerService:
     def __init__(self) -> None:
+        # TODO(PROD): Replace in-memory storage with a durable repository
+        # (e.g., PostgreSQL) keyed by session_id/layer_id, and optionally add
+        # Redis caching for hot reads. Current dict-based storage is POC-only.
         self._layers_by_session: dict[str, list[LayerDescriptor]] = {}
         self._layer_index: dict[str, LayerDescriptor] = {}
 

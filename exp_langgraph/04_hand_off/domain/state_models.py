@@ -44,6 +44,7 @@ class OpState(IAgentState):
 
 
 class SessionModel(BaseModel):
+    # Used by SessionService for session lifecycle and metadata storage.
     sessionId: str
     status: Literal["active", "closed"] = "active"
     createdAt: str
@@ -59,17 +60,20 @@ class SessionModel(BaseModel):
 
 
 class LayerSource(BaseModel):
+    # Used by LayerDescriptor; read/written by LayerService.
     type: str
     url: str
 
 
 class LayerStyle(BaseModel):
+    # Used by LayerDescriptor and LayerPatchRequest; managed by LayerService.
     preset: Optional[str] = None
     paint: Optional[Dict[str, Any]] = None
     layout: Optional[Dict[str, Any]] = None
 
 
 class LayerDescriptor(BaseModel):
+    # Used by LayerService as the canonical layer record returned by layer APIs.
     id: str
     name: str
     kind: Literal["geojson", "vector", "raster", "cog", "wms"]
@@ -84,6 +88,25 @@ class LayerDescriptor(BaseModel):
 
 
 class LayerPatchRequest(BaseModel):
+    # Request body for PATCH /api/layers/{layer_id}
+    # Consumed by LayerService.update_layer(...).
     visible: Optional[bool] = None
     opacity: Optional[float] = None
     style: Optional[LayerStyle] = None
+
+
+class ChatRequest(BaseModel):
+    # Request body for POST /api/sessions/{session_id}/chat
+    # Consumed by RunService.execute_run(...).
+    message: str
+    context: Optional[Dict[str, Any]] = None
+
+
+class RunModel(BaseModel):
+    # Used by RunService for run status tracking and polling responses.
+    runId: str
+    sessionId: str
+    status: Literal["queued", "running", "completed", "failed", "interrupted"]
+    startedAt: str
+    finishedAt: Optional[str] = None
+    error: Optional[str] = None

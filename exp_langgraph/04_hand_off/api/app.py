@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 from typing import BinaryIO
 
@@ -7,8 +8,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 
 from .layer_service import LayerService
+from .run_service import RunService
 from .session_service import SessionService
-from domain.state_models import LayerPatchRequest
+from domain.state_models import ChatRequest, LayerPatchRequest
 from tools import LocalArtifactProvider
 
 
@@ -16,8 +18,10 @@ def create_app() -> FastAPI:
     app = FastAPI(title="04_hand_off API", version="0.1.0")
     session_service = SessionService()
     layer_service = LayerService()
+    run_service = RunService()
     artifact_provider = LocalArtifactProvider()
     app.state.layer_service = layer_service
+    app.state.run_service = run_service
     app.state.artifact_provider = artifact_provider
 
     @app.get("/api/health")
@@ -77,6 +81,37 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=404, detail="Layer not found")
         # model_dump() serializes the updated Pydantic model for response output.
         return layer.model_dump()
+
+    @app.post("/api/sessions/{session_id}/chat")
+    async def chat(session_id: str, payload: ChatRequest) -> dict[str, str]:
+        session = session_service.get_session(session_id)
+        if session is None:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        run = run_service.create_run(session_id)
+        session_service.set_last_run(session_id, run.runId)
+
+        # Schedule graph execution in the background and return runId immediately.
+        # Clients observe progress/terminal state via GET /api/runs/{run_id}
+        # (polling now; SSE stream endpoint is planned in BACKEND-006).
+        # TODO(PROD): Replace in-process asyncio task scheduling with a durable
+        # background job queue/worker so runs survive API restarts and support
+        # multi-worker deployment semantics.
+        asyncio.create_task(
+            run_service.execute_run(
+                session_id=session_id,
+                run_id=run.runId,
+                message=payload.message,
+            )
+        )
+        return {"runId": run.runId}
+
+    @app.get("/api/runs/{run_id}")
+    async def get_run(run_id: str) -> dict:
+        run = run_service.get_run(run_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail="Run not found")
+        return run.model_dump()
 
     @app.get("/api/artifacts/{artifact_id}/content")
     async def get_artifact_content(artifact_id: str) -> StreamingResponse:
