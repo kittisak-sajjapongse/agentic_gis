@@ -23,7 +23,7 @@ Scope is proof-of-concept only.
 | [BACKEND-012](#BACKEND-012) | EPIC-HITL-001 | DONE | Codex | 2026-05-18 |
 | [UI-007](#UI-007) | EPIC-HITL-001 | DONE | Codex | 2026-05-18 |
 | [BACKEND-013](#BACKEND-013) | EPIC-HITL-001 | DONE | Codex | 2026-05-18 |
-| [QA-003](#QA-003) | EPIC-HITL-001 | TODO | Unassigned | - |
+| [QA-003](#QA-003) | EPIC-HITL-001 | DONE | Codex | 2026-05-18 |
 | [BACKEND-014](#BACKEND-014) | EPIC-RENDER-001 | TODO | Unassigned | - |
 | [BACKEND-015](#BACKEND-015) | EPIC-RENDER-001 | TODO | Unassigned | - |
 | [QA-004](#QA-004) | EPIC-RENDER-001 | TODO | Unassigned | - |
@@ -430,7 +430,7 @@ Scope is proof-of-concept only.
 
 <a id="QA-003"></a>
 
-## QA-003 [TODO] - Add HITL clarification/resume regression checklist
+## QA-003 [DONE] - Add HITL clarification/resume regression checklist
 **Component:** QA
 **EPIC:** `EPIC-HITL-001`
 
