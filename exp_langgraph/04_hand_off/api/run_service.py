@@ -175,6 +175,7 @@ class RunService:
         kind = "geojson"
         source_type = "geojson"
         style = LayerStyle(preset="line-default")
+        source_artifact_id: str | None = None
 
         if normalized_output_type == "GEOTIFF_LAYER" or suffix in {".tif", ".tiff"}:
             content_type = "image/tiff"
@@ -186,16 +187,36 @@ class RunService:
             kind = "geojson"
             source_type = "geojson"
             style = LayerStyle(preset="line-default")
+            # Keep raw parquet artifact for audit/download and create a converted
+            # GeoJSON artifact for map rendering compatibility in the POC.
+            artifact_provider.register_artifact(
+                path=str(file_path),
+                content_type=content_type,
+            )
+            geojson_path = self._convert_parquet_to_geojson(file_path, run_id)
+            if geojson_path is not None:
+                converted = artifact_provider.register_artifact(
+                    path=str(geojson_path),
+                    content_type="application/geo+json",
+                )
+                source_artifact_id = converted.artifact_id
+            else:
+                logger.warning(
+                    "GeoParquet conversion failed for path=%s; falling back to raw artifact source",
+                    str(file_path),
+                )
         elif suffix == ".geojson":
             content_type = "application/geo+json"
             kind = "geojson"
             source_type = "geojson"
             style = LayerStyle(preset="line-default")
 
-        artifact = artifact_provider.register_artifact(
-            path=str(file_path),
-            content_type=content_type,
-        )
+        if source_artifact_id is None:
+            artifact = artifact_provider.register_artifact(
+                path=str(file_path),
+                content_type=content_type,
+            )
+            source_artifact_id = artifact.artifact_id
         layer_id = layer_service.create_layer_id(prefix="lyr_out")
         layer = LayerDescriptor(
             id=layer_id,
@@ -203,7 +224,7 @@ class RunService:
             kind=kind,  # type: ignore[arg-type]
             source=LayerSource(
                 type=source_type,
-                url=f"/api/artifacts/{artifact.artifact_id}/content",
+                url=f"/api/artifacts/{source_artifact_id}/content",
             ),
             style=style,
             visible=True,
@@ -213,6 +234,25 @@ class RunService:
         )
         layer_service.add_layer(session_id, layer)
         return layer
+
+    def _convert_parquet_to_geojson(self, parquet_path: Path, run_id: str) -> Path | None:
+        try:
+            import geopandas as gpd
+
+            gdf = gpd.read_parquet(parquet_path)
+            output_path = parquet_path.with_name(
+                f"{parquet_path.stem}.run_{run_id}.geojson"
+            )
+            output_path.write_text(gdf.to_json(default=str), encoding="utf-8")
+            return output_path
+        except Exception as exc:
+            logger.exception(
+                "Failed to convert GeoParquet to GeoJSON path=%s run_id=%s error=%s",
+                str(parquet_path),
+                run_id,
+                str(exc),
+            )
+            return None
 
     def _normalize_output_type(self, output_type: Any) -> str | None:
         if not isinstance(output_type, str):
