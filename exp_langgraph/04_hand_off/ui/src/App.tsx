@@ -319,8 +319,31 @@ export function App() {
 
       const onAnyEvent = async (eventName: string, ev: MessageEvent) => {
         const data = JSON.parse(ev.data) as SseEventPayload;
-        if (eventName === 'layer_created' && sessionId) {
-          await reloadLayers(sessionId);
+        if (eventName === 'layer_created') {
+          const createdLayerId = data.payload.layerId;
+          if (typeof createdLayerId === 'string') {
+            try {
+              const response = await fetch(`/api/layers/${createdLayerId}`);
+              if (response.ok) {
+                const createdLayer = (await response.json()) as LayerDescriptor;
+                setLayers((prev) => {
+                  const existingIdx = prev.findIndex((l) => l.id === createdLayer.id);
+                  if (existingIdx >= 0) {
+                    const next = [...prev];
+                    next[existingIdx] = createdLayer;
+                    return next;
+                  }
+                  return [...prev, createdLayer];
+                });
+              }
+            } catch {
+              if (sessionId) {
+                await reloadLayers(sessionId);
+              }
+            }
+          } else if (sessionId) {
+            await reloadLayers(sessionId);
+          }
         }
 
         setChatMessages((prev) => [

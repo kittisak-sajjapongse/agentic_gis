@@ -19,7 +19,7 @@ Scope is proof-of-concept only.
 | [UI-001](#UI-001) | - | DONE | Codex | 2026-05-16 |
 | [UI-002](#UI-002) | - | DONE | Codex | 2026-05-17 |
 | [UI-003](#UI-003) | - | DONE | Codex | 2026-05-17 |
-| [UI-004](#UI-004) | - | TODO | Unassigned | - |
+| [UI-004](#UI-004) | - | DONE | Codex | 2026-05-18 |
 | [BACKEND-007](#BACKEND-007) | - | TODO | Unassigned | - |
 | [BACKEND-008](#BACKEND-008) | - | TODO | Unassigned | - |
 | [BACKEND-010](#BACKEND-010) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
@@ -313,7 +313,7 @@ Scope is proof-of-concept only.
 
 <a id="UI-004"></a>
 
-## UI-004 [TODO] - Auto-add agent output layers from SSE events
+## UI-004 [DONE] - Auto-add agent output layers from SSE events
 **Component:** UI
 
 **Goal**
