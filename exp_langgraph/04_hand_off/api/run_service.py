@@ -13,6 +13,8 @@ from langchain_core.messages import HumanMessage
 from api.layer_service import LayerService
 from domain.state_models import LayerDescriptor, LayerSource, LayerStyle, RunModel
 from graphs.main_graph import build_main_graph
+from graphs.input_retrieval_graph import IR_CLARIFICATION_INTERRUPT_TYPE
+from graphs.output_producer_graph import OP_CLARIFICATION_INTERRUPT_TYPE
 from tools.artifact_provider import ArtifactProvider
 
 logger = logging.getLogger(__name__)
@@ -39,7 +41,7 @@ class RunService:
     def get_run(self, run_id: str) -> RunModel | None:
         return self._runs.get(run_id)
 
-    def _update_run(self, run_id: str, **updates: str | None) -> RunModel | None:
+    def _update_run(self, run_id: str, **updates: Any) -> RunModel | None:
         run = self.get_run(run_id)
         if run is None:
             return None
@@ -70,7 +72,18 @@ class RunService:
                 "timestamp": self._now_iso(),
                 "payload": {"status": "completed"},
             }
-        if run.status in {"failed", "interrupted"}:
+        if run.status == "interrupted":
+            return {
+                "type": "clarification_required",
+                "runId": run.runId,
+                "sessionId": run.sessionId,
+                "timestamp": self._now_iso(),
+                "payload": {
+                    "interruptId": run.pendingInterruptId,
+                    "question": run.pendingQuestion or "Need clarification to continue.",
+                },
+            }
+        if run.status == "failed":
             return {
                 "type": "error",
                 "runId": run.runId,
@@ -82,6 +95,21 @@ class RunService:
                 },
             }
         return None
+
+    def _extract_clarification(self, state: Any) -> tuple[str | None, str | None]:
+        if not state or not getattr(state, "interrupts", None):
+            return None, None
+        matches = [
+            intr
+            for intr in state.interrupts
+            if isinstance(getattr(intr, "value", None), dict)
+            and intr.value.get("type")
+            in {IR_CLARIFICATION_INTERRUPT_TYPE, OP_CLARIFICATION_INTERRUPT_TYPE}
+        ]
+        if len(matches) != 1:
+            return None, None
+        matched = matches[0]
+        return matched.id, matched.value.get("question")
 
     def _actionable_error_message(self, exc: Exception) -> str:
         msg = str(exc)
@@ -226,7 +254,7 @@ class RunService:
                                 break
                         continue
                     yield event
-                    if event["type"] in {"done", "error"}:
+                    if event["type"] in {"done", "error", "clarification_required"}:
                         break
             finally:
                 subscribers = self._subscribers.get(run_id, [])
@@ -288,10 +316,12 @@ class RunService:
                             )
 
             if state.interrupts:
+                interrupt_id, question = self._extract_clarification(state)
                 self._update_run(
                     run_id,
                     status="interrupted",
-                    finishedAt=self._now_iso(),
+                    pendingInterruptId=interrupt_id,
+                    pendingQuestion=question,
                 )
                 self._emit_event(
                     run_id,
@@ -300,8 +330,11 @@ class RunService:
                 )
                 self._emit_event(
                     run_id,
-                    "error",
-                    {"message": "Run interrupted and requires clarification"},
+                    "clarification_required",
+                    {
+                        "interruptId": interrupt_id,
+                        "question": question or "Need clarification to continue.",
+                    },
                 )
                 return
 
@@ -309,6 +342,8 @@ class RunService:
                 run_id,
                 status="completed",
                 finishedAt=self._now_iso(),
+                pendingInterruptId=None,
+                pendingQuestion=None,
             )
             self._emit_event(
                 run_id,
