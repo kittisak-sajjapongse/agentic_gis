@@ -106,6 +106,13 @@ Design principles:
 - backend-mediated artifact access (UI never reads local disk directly)
 - stable payloads so storage backend can change without UI rewrite
 
+Show-layer strategy:
+- Implement `show_layer(...)` in backend service layer as the source-of-truth
+  capability for agent/user requests to show known layers.
+- In production, expose `POST /api/sessions/:sessionId/layers/show` backed by
+  that service method for a clean explicit command contract.
+- Keep catalog APIs for manual discovery/import flows.
+
 ---
 
 ## Technology Choices and Rationale
@@ -204,4 +211,3 @@ The POC is successful when a new user can:
 - Architecture details: [architecture.md](/Users/kittisak/data/work/agentic_gis/exp_langgraph/04_hand_off/docs/architecture.md)
 - Ordered implementation backlog: [work_items.md](/Users/kittisak/data/work/agentic_gis/exp_langgraph/04_hand_off/docs/work_items.md)
 - Contributor boundary rules: `AGENTS.md`
-

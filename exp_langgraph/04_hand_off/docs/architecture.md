@@ -145,6 +145,30 @@ Request flow:
 2. UI reads `source.url` from each descriptor.
 3. UI/map fetches content from `artifacts` endpoint when rendering/loading data.
 
+### 2.2.2 Show-Layer Capability (Service First)
+
+To support requests like “show hotspot 2025 on map,” the backend should expose a
+domain capability named `show_layer(...)` in the service layer.
+
+`show_layer(...)` responsibilities:
+1. Resolve target by `catalogItemId` or existing `layerId`.
+2. If needed, import/register artifact and create session layer.
+3. Set layer `visible=true` idempotently.
+4. Return the resolved/updated `LayerDescriptor`.
+
+Design decision:
+- Source of truth is the service method, not route handlers.
+- API handlers and run orchestration both call the same service method.
+
+Production recommendation:
+- Expose `POST /api/sessions/:sessionId/layers/show` as an explicit command API
+  backed by `show_layer(...)`.
+- Keep `GET /api/catalog` + `POST /layers/import` for manual discovery/import flows.
+
+POC note:
+- The endpoint can be deferred while run orchestration calls `show_layer(...)`
+  directly in-process.
+
 #### LayerDescriptor
 
 ```json
@@ -195,6 +219,7 @@ Request flow:
 | `GET` | `/api/artifacts/:artifactId/content` | Retrieve raw artifact data for map source | N/A | Content stream (GeoJSON/tiles/raster/etc.) |
 | `GET` | `/api/catalog` | Optional: list available local GIS datasets to add as input layers | N/A | `{ "items": [{ "id":"cat_1", "name":"rainfall_2025_01" }] }` |
 | `POST` | `/api/sessions/:sessionId/layers/import` | Optional: import catalog item into session as input layer | `{ "catalogItemId": "cat_1" }` | `{ "layerId": "lyr_input_77" }` |
+| `POST` | `/api/sessions/:sessionId/layers/show` | Production-recommended explicit show command (service-backed) | `{ "catalogItemId": "hotspot_2025" }` | `{ ...LayerDescriptor, "visible": true }` |
 
 ### 2.4 SSE Event Types
 

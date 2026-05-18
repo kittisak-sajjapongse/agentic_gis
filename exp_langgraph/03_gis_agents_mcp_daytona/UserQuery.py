@@ -8,6 +8,7 @@ class GisQuery:
     Q007 = "หาข้อมูลพิกัด 7-11 ในกรุงเทพฯมีกี่จุดและแต่ละจุดมีความห่างกันโดยเฉลี่ยเท่าไหร่"
     Q008 = "ค่าเฉลี่ยปริมาณน้ำฝนในพื้นที่จังหวัดเชียงใหม่ต่างกันอยู่เท่าไรในเดือนเม.ย.ของปี 2567 และ 2566"
     Q009 = "I want to know the areas in Thailand where the burnscars in Thailand overlap more than three times during the years 2024 and 2025. You must convert the CRS of the files to be the same before performing analysis if the files have different CRS."
+    Q010 = "How many hotspot are there in Thailand in April of 2025?"
 
 
 class NonGisQuery:

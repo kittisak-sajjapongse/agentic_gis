@@ -5,24 +5,31 @@ Scope is proof-of-concept only.
 
 ## Compact Status View
 
-| Item | Status | Owner | Updated |
-|---|---|---|---|
-| [BACKEND-001](#BACKEND-001) | DONE | Codex | 2026-05-15 |
-| [BACKEND-002](#BACKEND-002) | DONE | Codex | 2026-05-15 |
-| [STORAGE-001](#STORAGE-001) | DONE | Codex | 2026-05-15 |
-| [BACKEND-003](#BACKEND-003) | DONE | Codex | 2026-05-16 |
-| [BACKEND-004](#BACKEND-004) | DONE | Codex | 2026-05-16 |
-| [BACKEND-005](#BACKEND-005) | DONE | Codex | 2026-05-16 |
-| [AGENT-001](#AGENT-001) | DONE | Codex | 2026-05-16 |
-| [BACKEND-006](#BACKEND-006) | DONE | Codex | 2026-05-16 |
-| [AGENT-002](#AGENT-002) | DONE | Codex | 2026-05-16 |
-| [UI-001](#UI-001) | DONE | Codex | 2026-05-16 |
-| [UI-002](#UI-002) | DONE | Codex | 2026-05-17 |
-| [UI-003](#UI-003) | TODO | Unassigned | - |
-| [UI-004](#UI-004) | TODO | Unassigned | - |
-| [BACKEND-007](#BACKEND-007) | TODO | Unassigned | - |
-| [BACKEND-008](#BACKEND-008) | TODO | Unassigned | - |
-| [QA-001](#QA-001) | TODO | Unassigned | - |
+| Item | EPIC | Status | Owner | Updated |
+|---|---|---|---|---|
+| [BACKEND-001](#BACKEND-001) | - | DONE | Codex | 2026-05-15 |
+| [BACKEND-002](#BACKEND-002) | - | DONE | Codex | 2026-05-15 |
+| [STORAGE-001](#STORAGE-001) | - | DONE | Codex | 2026-05-15 |
+| [BACKEND-003](#BACKEND-003) | - | DONE | Codex | 2026-05-16 |
+| [BACKEND-004](#BACKEND-004) | - | DONE | Codex | 2026-05-16 |
+| [BACKEND-005](#BACKEND-005) | - | DONE | Codex | 2026-05-16 |
+| [AGENT-001](#AGENT-001) | - | DONE | Codex | 2026-05-16 |
+| [BACKEND-006](#BACKEND-006) | - | DONE | Codex | 2026-05-16 |
+| [AGENT-002](#AGENT-002) | - | DONE | Codex | 2026-05-16 |
+| [UI-001](#UI-001) | - | DONE | Codex | 2026-05-16 |
+| [UI-002](#UI-002) | - | DONE | Codex | 2026-05-17 |
+| [UI-003](#UI-003) | - | DONE | Codex | 2026-05-17 |
+| [UI-004](#UI-004) | - | TODO | Unassigned | - |
+| [BACKEND-007](#BACKEND-007) | - | TODO | Unassigned | - |
+| [BACKEND-008](#BACKEND-008) | - | TODO | Unassigned | - |
+| [BACKEND-010](#BACKEND-010) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
+| [AGENT-003](#AGENT-003) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
+| [BACKEND-011](#BACKEND-011) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
+| [UI-006](#UI-006) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
+| [QA-002](#QA-002) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
+| [BACKEND-009](#BACKEND-009) | - | TODO | Unassigned | - |
+| [UI-005](#UI-005) | - | TODO | Unassigned | - |
+| [QA-001](#QA-001) | - | TODO | Unassigned | - |
 
 <a id="BACKEND-001"></a>
 
@@ -282,7 +289,7 @@ Scope is proof-of-concept only.
 
 <a id="UI-003"></a>
 
-## UI-003 [TODO] - Integrate assistant-ui chat + run streaming
+## UI-003 [DONE] - Integrate assistant-ui chat + run streaming
 **Component:** UI
 
 **Goal**
@@ -371,6 +378,212 @@ Scope is proof-of-concept only.
 1. Create session and run that generates output layer.
 2. Restart backend.
 3. Fetch session/layers again and confirm data remains.
+
+---
+
+## EPIC-LAYERSHOW-001 - Agent-Driven Layer Showing
+**Feature Goal**
+- When a user asks the agent to show a known GIS layer, that layer should become visible on the map without manual backend seeding.
+
+**Scope**
+- Backend action contract for show-layer intent
+- Agent output contract for show-layer actions
+- Catalog resolution/import plumbing
+- SSE update events + UI handling
+
+---
+
+<a id="BACKEND-010"></a>
+
+## BACKEND-010 [TODO] - Implement `show_layer(...)` service capability (+ production endpoint)
+**Component:** BACKEND
+**EPIC:** `EPIC-LAYERSHOW-001`
+
+**Goal**
+- Add a first-class backend service action to show an existing catalog/session layer by identifier, instead of relying on implicit side effects.
+
+**Deliverables**
+- `show_layer(...)` service method as source-of-truth implementation.
+- Service input accepts one of:
+  - `catalogItemId` (global catalog identity), or
+  - `layerId` (already imported session layer).
+- Service behavior:
+  - if `catalogItemId` not in session: import/register artifact/create session layer
+  - set target layer `visible=true`
+  - return resolved `LayerDescriptor`
+- Production API recommendation:
+  - expose `POST /api/sessions/:sessionId/layers/show` on top of `show_layer(...)`.
+  - For POC, endpoint can be deferred while AGENT flow calls service directly.
+
+**Acceptance Criteria**
+- Calling service with valid `catalogItemId` creates/returns visible input layer.
+- Calling service with existing `layerId` toggles to visible.
+- Invalid IDs return `404` with clear message.
+
+**Verification**
+1. Create session.
+2. Call `show_layer(...)` with valid `catalogItemId`.
+3. Verify returned layer has `visible=true`.
+4. Call `GET /api/sessions/:sessionId/layers` and confirm layer exists.
+
+---
+
+<a id="AGENT-003"></a>
+
+## AGENT-003 [TODO] - Extend agent/run contract for show-layer actions
+**Component:** AGENT
+**EPIC:** `EPIC-LAYERSHOW-001`
+
+**Goal**
+- Let agent output structured show-layer actions so backend can deterministically perform map updates.
+
+**Deliverables**
+- Add action payload shape in run processing, e.g.:
+  - `{\"action\":\"show_layer\",\"catalog_item_id\":\"...\"}`
+  - `{\"action\":\"show_layer\",\"layer_id\":\"...\"}`
+- Update run execution path to detect actions and invoke backend show-layer service flow.
+- Add guardrails so malformed actions do not crash runs.
+
+**Acceptance Criteria**
+- Agent-produced `show_layer` action triggers visible layer change in session.
+- Invalid action payload emits clear run error event without process crash.
+
+**Verification**
+1. Trigger run with mocked/controlled agent action output.
+2. Confirm backend invokes show-layer action path.
+3. Confirm session layers reflect visible target layer.
+
+---
+
+<a id="BACKEND-011"></a>
+
+## BACKEND-011 [TODO] - Emit `layer_updated` SSE event for visibility/state changes
+**Component:** BACKEND
+**EPIC:** `EPIC-LAYERSHOW-001`
+
+**Goal**
+- Stream explicit non-creation layer changes so UI can update map state without full polling reload.
+
+**Deliverables**
+- Add SSE event type: `layer_updated`.
+- Emit `layer_updated` on visibility/state updates from:
+  - show-layer endpoint
+  - layer patch endpoint
+  - run-driven actions
+- Event payload includes at least:
+  - `layerId`
+  - changed fields (e.g., `visible`)
+
+**Acceptance Criteria**
+- Visibility updates emit `layer_updated` in run/session streams.
+- Existing `layer_created` behavior remains unchanged.
+
+**Verification**
+1. Toggle layer visibility via API.
+2. Confirm SSE includes `layer_updated` with expected payload.
+3. Confirm no duplicate `layer_created` for pure updates.
+
+---
+
+<a id="UI-006"></a>
+
+## UI-006 [TODO] - Handle show-layer and `layer_updated` events in map state
+**Component:** UI
+**EPIC:** `EPIC-LAYERSHOW-001`
+
+**Goal**
+- Ensure map and layer panel respond correctly when agent requests showing existing layers.
+
+**Deliverables**
+- Chat/SSE handler updates local layer state on `layer_updated`.
+- On `show_layer`-driven results, UI either:
+  - applies patch directly from event payload, or
+  - fetches updated descriptor and patches state.
+- Minimize full list reloads when only one layer changed.
+
+**Acceptance Criteria**
+- Asking agent to “show hotspot 2025” results in visible layer on map.
+- Layer panel visibility checkbox reflects latest state.
+- UI remains stable under repeated show/hide operations.
+
+**Verification**
+1. Start session and chat request for a known layer.
+2. Observe streamed updates.
+3. Confirm map visibility and checkbox state update correctly.
+
+---
+
+<a id="QA-002"></a>
+
+## QA-002 [TODO] - Add EPIC-LAYERSHOW-001 regression checklist
+**Component:** QA
+**EPIC:** `EPIC-LAYERSHOW-001`
+
+**Goal**
+- Prevent regressions in agent-driven map layer visibility behavior.
+
+**Deliverables**
+- Checklist covering:
+  - show by `catalogItemId`
+  - show by existing `layerId`
+  - repeated show requests
+  - invalid IDs/payloads
+  - SSE event sequence (`message/tool_*`, `layer_created`, `layer_updated`, terminal)
+
+**Acceptance Criteria**
+- All checklist scenarios pass in local POC run.
+- Failures map to actionable bug reports with API traces.
+
+**Verification**
+1. Execute checklist against clean environment.
+2. Capture network traces and SSE logs.
+3. Record pass/fail and open follow-up items.
+
+---
+
+<a id="BACKEND-009"></a>
+
+## BACKEND-009 [TODO] - Add run resume/reconnect by `runId`
+**Component:** BACKEND
+
+**Goal**
+- Allow UI to reconnect to in-flight or completed runs without losing progress visibility.
+
+**Deliverables**
+- Stable run lookup + stream resume behavior by `runId`.
+- `GET /api/runs/:runId` and `GET /api/runs/:runId/stream` support reconnect after UI refresh.
+
+**Acceptance Criteria**
+- If UI disconnects during a run, reconnecting with same `runId` resumes visibility of state/events.
+- Completed runs can still be queried for terminal status and summary metadata.
+
+**Verification**
+1. Start a run and capture `runId`.
+2. Disconnect UI or refresh page mid-run.
+3. Reconnect using same `runId` and verify continued status visibility to terminal state.
+
+---
+
+<a id="UI-005"></a>
+
+## UI-005 [TODO] - Add long-running notice (10 minutes) without aborting run
+**Component:** UI
+
+**Goal**
+- Improve operator awareness for long jobs while preserving completion-oriented behavior.
+
+**Deliverables**
+- Non-blocking chat notice when a run exceeds 10 minutes.
+- No client-side cancellation/timeout triggered by this notice.
+
+**Acceptance Criteria**
+- At 10 minutes, UI shows a clear “still running” informational message.
+- SSE/run tracking continues normally and can still reach `done`/`error`.
+
+**Verification**
+1. Simulate or run a long job (>10 minutes).
+2. Confirm the notice appears at approximately 10 minutes.
+3. Confirm run continues and terminal event is still processed.
 
 ---
 
