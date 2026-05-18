@@ -21,9 +21,12 @@ Scope is proof-of-concept only.
 | [UI-003](#UI-003) | - | DONE | Codex | 2026-05-17 |
 | [UI-004](#UI-004) | - | DONE | Codex | 2026-05-18 |
 | [BACKEND-012](#BACKEND-012) | EPIC-HITL-001 | DONE | Codex | 2026-05-18 |
-| [UI-007](#UI-007) | EPIC-HITL-001 | TODO | Unassigned | - |
+| [UI-007](#UI-007) | EPIC-HITL-001 | DONE | Codex | 2026-05-18 |
 | [BACKEND-013](#BACKEND-013) | EPIC-HITL-001 | DONE | Codex | 2026-05-18 |
 | [QA-003](#QA-003) | EPIC-HITL-001 | TODO | Unassigned | - |
+| [BACKEND-014](#BACKEND-014) | EPIC-RENDER-001 | TODO | Unassigned | - |
+| [BACKEND-015](#BACKEND-015) | EPIC-RENDER-001 | TODO | Unassigned | - |
+| [QA-004](#QA-004) | EPIC-RENDER-001 | TODO | Unassigned | - |
 | [BACKEND-007](#BACKEND-007) | - | TODO | Unassigned | - |
 | [BACKEND-008](#BACKEND-008) | - | TODO | Unassigned | - |
 | [BACKEND-010](#BACKEND-010) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
@@ -376,7 +379,7 @@ Scope is proof-of-concept only.
 
 <a id="UI-007"></a>
 
-## UI-007 [TODO] - Add chat HITL state and clarification input flow
+## UI-007 [DONE] - Add chat HITL state and clarification input flow
 **Component:** UI
 **EPIC:** `EPIC-HITL-001`
 
@@ -449,6 +452,96 @@ Scope is proof-of-concept only.
 1. Execute scripted clarification scenario.
 2. Validate event timeline and UI states.
 3. Record defects with event traces.
+
+---
+
+## EPIC-RENDER-001 - Agent Output Render Compatibility
+**Feature Goal**
+- Ensure agent-generated output files are transformed into map-consumable sources so layers reliably appear on MapLibre.
+
+**Priority**
+- Immediate / blocking for visibility of generated GeoParquet outputs in current POC.
+
+---
+
+<a id="BACKEND-014"></a>
+
+## BACKEND-014 [TODO] - Normalize output types for layer generation
+**Component:** BACKEND
+**EPIC:** `EPIC-RENDER-001`
+
+**Goal**
+- Make backend tolerant to output type variants from agents (`GEOPARQUET` vs `GEOPARQUET_LAYER`, etc.).
+
+**Deliverables**
+- Output type normalization helper in run output plumbing.
+- Normalize at least:
+  - `GEOPARQUET`, `GEOPARQUET_LAYER`
+  - `GEOTIFF`, `GEOTIFF_LAYER`
+- Unknown types produce clear warning/log and safe fallback behavior.
+
+**Acceptance Criteria**
+- Both normalized GeoParquet labels follow same mapping path.
+- No silent drop of valid output due to naming variant.
+
+**Verification**
+1. Inject mocked outputs with both naming variants.
+2. Confirm layer registration path executes for both.
+3. Confirm logs are emitted for unknown labels.
+
+---
+
+<a id="BACKEND-015"></a>
+
+## BACKEND-015 [TODO] - Add POC GeoParquet -> GeoJSON conversion for map rendering
+**Component:** BACKEND
+**EPIC:** `EPIC-RENDER-001`
+
+**Goal**
+- Convert GeoParquet outputs to map-consumable GeoJSON sources in POC so MapLibre can display generated vector features.
+
+**Deliverables**
+- Conversion step in output-layer registration pipeline:
+  - input: GeoParquet artifact path
+  - output: GeoJSON artifact path
+- Register converted artifact and set `LayerDescriptor.source` to converted GeoJSON URL.
+- Keep original artifact registration (for audit/download) if needed.
+
+**Acceptance Criteria**
+- Agent-generated GeoParquet output appears as visible features on map.
+- `layer_created` emitted after converted source is ready.
+
+**Verification**
+1. Run prompt that generates GeoParquet output.
+2. Confirm converted GeoJSON artifact exists.
+3. Confirm UI map renders resulting features.
+
+---
+
+<a id="QA-004"></a>
+
+## QA-004 [TODO] - Add render-compatibility regression checks for generated outputs
+**Component:** QA
+**EPIC:** `EPIC-RENDER-001`
+
+**Goal**
+- Prevent regressions where outputs are created but not renderable on map.
+
+**Deliverables**
+- Checklist covering:
+  - GeoParquet output generation
+  - conversion artifact creation
+  - `layer_created` sequencing
+  - visible rendering on map
+
+**Acceptance Criteria**
+- End-to-end generated vector output is visible on map in POC.
+- Failure cases produce actionable backend logs.
+
+**Verification**
+1. Execute generated-output scenario.
+2. Validate conversion + layer descriptor source.
+3. Confirm map visibility and capture traces.
 
 ---
 

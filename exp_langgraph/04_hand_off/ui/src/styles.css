@@ -87,6 +87,12 @@ body {
   font-size: 13px;
 }
 
+.hint-text {
+  color: #1d3557;
+  font-size: 13px;
+  margin-top: 0;
+}
+
 .layer-list {
   list-style: none;
   padding: 0;
