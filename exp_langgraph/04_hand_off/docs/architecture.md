@@ -214,6 +214,7 @@ POC note:
 | `POST` | `/api/sessions/:sessionId/chat` | Submit user message and start run | `{ "message": "Find burnscar overlap", "context": { "selectedLayerIds": ["lyr_a"] } }` | `{ "runId": "run_456", "streamUrl": "/api/runs/run_456/stream" }` |
 | `GET` | `/api/runs/:runId` | Get run metadata and current status | N/A | `{ "runId": "run_456", "status": "running", "startedAt": "..." }` |
 | `GET` (SSE) | `/api/runs/:runId/stream` | Stream run/chat/tool/layer events | N/A | `event: message` + `data: {...}` (see §2.4) |
+| `POST` | `/api/runs/:runId/resume` | Resume interrupted run with clarification answer (HITL) | `{ "interruptId":"intr_1", "answer":"Use 2025 only" }` | `{ "runId":"run_456", "status":"running" }` |
 | `GET` | `/api/layers/:layerId` | Fetch one layer descriptor | N/A | `{ ...LayerDescriptor }` |
 | `PATCH` | `/api/layers/:layerId` | Update UI-controlled layer state (visibility, opacity, style override) | `{ "visible": false, "opacity": 0.5 }` | `{ ...LayerDescriptor }` |
 | `GET` | `/api/artifacts/:artifactId/content` | Retrieve raw artifact data for map source | N/A | Content stream (GeoJSON/tiles/raster/etc.) |
@@ -238,10 +239,14 @@ Backend should emit these event types from `/api/runs/:runId/stream`:
 - A new map layer is available
 - UI should call `GET /api/layers/:layerId` and render it
 
-5. `error`
+5. `clarification_required`
+- Expected HITL interrupt (not failure) requiring user response.
+- Payload should include `interruptId` and `question`.
+
+6. `error`
 - Recoverable/non-recoverable run errors
 
-6. `done`
+7. `done`
 - Run completed
 
 #### SSE event examples
@@ -259,6 +264,11 @@ data: {"type":"tool_start","runId":"run_456","sessionId":"sess_123","timestamp":
 ```text
 event: layer_created
 data: {"type":"layer_created","runId":"run_456","sessionId":"sess_123","timestamp":"2026-05-13T12:10:20Z","payload":{"layerId":"lyr_out_001"}}
+```
+
+```text
+event: clarification_required
+data: {"type":"clarification_required","runId":"run_456","sessionId":"sess_123","timestamp":"2026-05-13T12:10:22Z","payload":{"interruptId":"intr_1","question":"Which month in 2025 should be used?"}}
 ```
 
 ```text
@@ -396,6 +406,7 @@ Agent stack:
 7. When output layer is produced, backend emits `layer_created`.
 8. UI fetches new layer descriptor and adds it to MapLibre.
 9. User toggles visibility/style in Layer Panel; UI persists via `PATCH /api/layers/:id`.
+10. If run emits `clarification_required`, UI captures `interruptId`, prompts user, and calls `POST /api/runs/:runId/resume` to continue the same run.
 
 ### 3.3 Why `deck.gl` Is Excluded From Initial POC
 

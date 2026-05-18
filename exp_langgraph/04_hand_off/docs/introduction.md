@@ -101,6 +101,10 @@ Core endpoint families:
 - Artifact content APIs
 - SSE stream for run events (`message`, `tool_start`, `tool_end`, `layer_created`, `done`, `error`)
 
+Immediate priority (blocking):
+- Human-in-the-loop clarification handling (HITL) so interrupt questions are
+  resumed as expected workflow, not surfaced as generic SSE errors.
+
 Design principles:
 - typed contracts for interoperability
 - backend-mediated artifact access (UI never reads local disk directly)
@@ -157,6 +161,7 @@ This allows:
 - progressive understanding of codebase and integration points
 - easier debugging and rollback scope
 - clearer progress tracking for technical and non-technical stakeholders
+- explicit handling of blocking features first (current: HITL resume flow)
 
 ---
 

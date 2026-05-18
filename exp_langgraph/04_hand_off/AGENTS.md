@@ -42,6 +42,14 @@ Preserve the current OOP boundaries while evolving the GIS hand-off workflow.
 
 Before submitting changes:
 
+0. Design Conformance
+- Cross-check implementation against:
+  - `docs/introduction.md`
+  - `docs/architecture.md`
+  - `docs/work_items.md`
+- Confirm the change follows the intended scope, API contracts, and current work-item priority/EPIC ordering.
+- If implementation intentionally deviates from these docs, document the reason and update the relevant doc(s) in the same change.
+
 1. Architecture
 - Confirm code is placed in the correct layer (`domain/agents/tools/graphs/runtime`).
 - Confirm no new circular imports are introduced.
