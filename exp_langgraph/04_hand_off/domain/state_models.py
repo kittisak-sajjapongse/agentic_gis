@@ -110,3 +110,5 @@ class RunModel(BaseModel):
     startedAt: str
     finishedAt: Optional[str] = None
     error: Optional[str] = None
+    pendingInterruptId: Optional[str] = None
+    pendingQuestion: Optional[str] = None

@@ -20,7 +20,7 @@ Scope is proof-of-concept only.
 | [UI-002](#UI-002) | - | DONE | Codex | 2026-05-17 |
 | [UI-003](#UI-003) | - | DONE | Codex | 2026-05-17 |
 | [UI-004](#UI-004) | - | DONE | Codex | 2026-05-18 |
-| [BACKEND-012](#BACKEND-012) | EPIC-HITL-001 | TODO | Unassigned | - |
+| [BACKEND-012](#BACKEND-012) | EPIC-HITL-001 | DONE | Codex | 2026-05-18 |
 | [UI-007](#UI-007) | EPIC-HITL-001 | TODO | Unassigned | - |
 | [BACKEND-013](#BACKEND-013) | EPIC-HITL-001 | TODO | Unassigned | - |
 | [QA-003](#QA-003) | EPIC-HITL-001 | TODO | Unassigned | - |
@@ -350,7 +350,7 @@ Scope is proof-of-concept only.
 
 <a id="BACKEND-012"></a>
 
-## BACKEND-012 [TODO] - Emit HITL-specific SSE event and stop treating interrupt as generic error
+## BACKEND-012 [DONE] - Emit HITL-specific SSE event and stop treating interrupt as generic error
 **Component:** BACKEND
 **EPIC:** `EPIC-HITL-001`
 
