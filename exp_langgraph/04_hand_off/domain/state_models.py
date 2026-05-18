@@ -102,6 +102,15 @@ class ChatRequest(BaseModel):
     context: Optional[Dict[str, Any]] = None
 
 
+class ResumeRunRequest(BaseModel):
+    # Request body for POST /api/runs/{run_id}/resume
+    # Used specifically for HITL clarification continuation.
+    # The interruptId must match the pending LangGraph interrupt instance id.
+    interruptId: str
+    # User clarification answer for the pending interrupt.
+    answer: str
+
+
 class RunModel(BaseModel):
     # Used by RunService for run status tracking and polling responses.
     runId: str

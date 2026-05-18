@@ -11,7 +11,7 @@ from fastapi.responses import StreamingResponse
 from .layer_service import LayerService
 from .run_service import RunService
 from .session_service import SessionService
-from domain.state_models import ChatRequest, LayerPatchRequest
+from domain.state_models import ChatRequest, LayerPatchRequest, ResumeRunRequest
 from tools import LocalArtifactProvider
 
 
@@ -130,6 +130,27 @@ def create_app() -> FastAPI:
             event_generator(),
             media_type="text/event-stream",
         )
+
+    @app.post("/api/runs/{run_id}/resume")
+    async def resume_run(run_id: str, payload: ResumeRunRequest) -> dict:
+        run = run_service.get_run(run_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail="Run not found")
+        try:
+            updated = await run_service.resume_run(
+                run_id=run_id,
+                interrupt_id=payload.interruptId,
+                answer=payload.answer,
+                layer_service=layer_service,
+                artifact_provider=artifact_provider,
+            )
+            return updated.model_dump()
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.get("/api/artifacts/{artifact_id}/content")
     async def get_artifact_content(artifact_id: str) -> StreamingResponse:
