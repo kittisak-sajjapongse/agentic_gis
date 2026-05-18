@@ -21,7 +21,7 @@ Scope is proof-of-concept only.
 | [UI-003](#UI-003) | - | DONE | Codex | 2026-05-17 |
 | [UI-004](#UI-004) | - | DONE | Codex | 2026-05-18 |
 | [BACKEND-012](#BACKEND-012) | EPIC-HITL-001 | DONE | Codex | 2026-05-18 |
-| [UI-007](#UI-007) | EPIC-HITL-001 | TODO | Unassigned | - |
+| [UI-007](#UI-007) | EPIC-HITL-001 | DONE | Codex | 2026-05-18 |
 | [BACKEND-013](#BACKEND-013) | EPIC-HITL-001 | DONE | Codex | 2026-05-18 |
 | [QA-003](#QA-003) | EPIC-HITL-001 | TODO | Unassigned | - |
 | [BACKEND-007](#BACKEND-007) | - | TODO | Unassigned | - |
@@ -376,7 +376,7 @@ Scope is proof-of-concept only.
 
 <a id="UI-007"></a>
 
-## UI-007 [TODO] - Add chat HITL state and clarification input flow
+## UI-007 [DONE] - Add chat HITL state and clarification input flow
 **Component:** UI
 **EPIC:** `EPIC-HITL-001`
 

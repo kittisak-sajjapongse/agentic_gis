@@ -47,6 +47,12 @@ type SseEventPayload = {
   payload: Record<string, unknown>;
 };
 
+type PendingClarification = {
+  runId: string;
+  interruptId: string;
+  question: string;
+};
+
 function HealthBadge() {
   const [health, setHealth] = useState<HealthState>({ state: 'loading' });
 
@@ -103,6 +109,9 @@ export function App() {
   const [chatInput, setChatInput] = useState<string>('');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatBusy, setChatBusy] = useState<boolean>(false);
+  const [pendingClarification, setPendingClarification] = useState<PendingClarification | null>(
+    null
+  );
   // TODO(PROD): When persistent thread history/long-term memory is introduced,
   // evaluate migrating chat surface to assistant-ui primitives for richer
   // thread navigation, message lifecycle handling, and lower UI maintenance.
@@ -298,24 +307,45 @@ export function App() {
     eventSourceRef.current?.close();
 
     try {
-      const response = await fetch(`/api/sessions/${sessionId}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
-      });
-      if (!response.ok) {
-        throw new Error(`Chat start failed: HTTP ${response.status}`);
+      let runId: string;
+      if (pendingClarification) {
+        const response = await fetch(`/api/runs/${pendingClarification.runId}/resume`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            interruptId: pendingClarification.interruptId,
+            answer: text,
+          }),
+        });
+        if (!response.ok) {
+          throw new Error(`Run resume failed: HTTP ${response.status}`);
+        }
+        runId = pendingClarification.runId;
+        setPendingClarification(null);
+        setChatMessages((prev) => [
+          ...prev,
+          { id: crypto.randomUUID(), role: 'system', text: `Run resumed: ${runId}` },
+        ]);
+      } else {
+        const response = await fetch(`/api/sessions/${sessionId}/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text }),
+        });
+        if (!response.ok) {
+          throw new Error(`Chat start failed: HTTP ${response.status}`);
+        }
+        const payload = (await response.json()) as { runId: string };
+        runId = payload.runId;
+        setChatMessages((prev) => [
+          ...prev,
+          { id: crypto.randomUUID(), role: 'system', text: `Run started: ${runId}` },
+        ]);
       }
-      const payload = (await response.json()) as { runId: string };
-      const runId = payload.runId;
-
-      setChatMessages((prev) => [
-        ...prev,
-        { id: crypto.randomUUID(), role: 'system', text: `Run started: ${runId}` },
-      ]);
 
       const es = new EventSource(`/api/runs/${runId}/stream`);
       eventSourceRef.current = es;
+      let expectedClose = false;
 
       const onAnyEvent = async (eventName: string, ev: MessageEvent) => {
         const data = JSON.parse(ev.data) as SseEventPayload;
@@ -346,6 +376,29 @@ export function App() {
           }
         }
 
+        if (eventName === 'clarification_required') {
+          const interruptId = data.payload.interruptId;
+          const question = data.payload.question;
+          if (typeof interruptId === 'string' && typeof question === 'string') {
+            setPendingClarification({
+              runId: data.runId,
+              interruptId,
+              question,
+            });
+            setChatMessages((prev) => [
+              ...prev,
+              { id: crypto.randomUUID(), role: 'system', text: `Clarification needed: ${question}` },
+            ]);
+          }
+          setChatBusy(false);
+          expectedClose = true;
+          es.close();
+          if (eventSourceRef.current === es) {
+            eventSourceRef.current = null;
+          }
+          return;
+        }
+
         setChatMessages((prev) => [
           ...prev,
           {
@@ -356,7 +409,9 @@ export function App() {
         ]);
 
         if (eventName === 'done' || eventName === 'error') {
+          setPendingClarification(null);
           setChatBusy(false);
+          expectedClose = true;
           es.close();
           if (eventSourceRef.current === es) {
             eventSourceRef.current = null;
@@ -364,13 +419,16 @@ export function App() {
         }
       };
 
-      ['message', 'tool_start', 'tool_end', 'layer_created', 'done', 'error'].forEach((name) => {
+      ['message', 'tool_start', 'tool_end', 'layer_created', 'clarification_required', 'done', 'error'].forEach((name) => {
         es.addEventListener(name, (ev) => {
           void onAnyEvent(name, ev as MessageEvent);
         });
       });
 
       es.onerror = () => {
+        if (expectedClose) {
+          return;
+        }
         setChatMessages((prev) => [
           ...prev,
           { id: crypto.randomUUID(), role: 'system', text: 'SSE connection error' },
@@ -417,11 +475,14 @@ export function App() {
 
         <aside className="panel right">
           <h2>Chat Pane</h2>
+          {pendingClarification ? (
+            <p className="hint-text">Awaiting clarification for run {pendingClarification.runId}</p>
+          ) : null}
           <form className="chat-form" onSubmit={submitChat}>
             <input
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              placeholder="Ask the agent..."
+              placeholder={pendingClarification ? pendingClarification.question : 'Ask the agent...'}
               disabled={!sessionId || chatBusy}
             />
             <button type="submit" disabled={!sessionId || !chatInput.trim() || chatBusy}>
