@@ -145,6 +145,12 @@ Request flow:
 2. UI reads `source.url` from each descriptor.
 3. UI/map fetches content from `artifacts` endpoint when rendering/loading data.
 
+Render compatibility note (important for generated outputs):
+- Raw GeoParquet bytes are not directly consumable by MapLibre `geojson` sources.
+- POC rendering path should convert GeoParquet outputs into GeoJSON artifacts
+  before creating `LayerDescriptor.source` for map display.
+- Original GeoParquet can still be retained as raw artifact for download/audit.
+
 ### 2.2.2 Show-Layer Capability (Service First)
 
 To support requests like “show hotspot 2025 on map,” the backend should expose a

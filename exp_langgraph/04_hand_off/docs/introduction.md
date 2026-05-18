@@ -104,6 +104,8 @@ Core endpoint families:
 Immediate priority (blocking):
 - Human-in-the-loop clarification handling (HITL) so interrupt questions are
   resumed as expected workflow, not surfaced as generic SSE errors.
+- Output render compatibility so generated GeoParquet layers are converted into
+  map-consumable sources and visibly rendered in the UI.
 
 Design principles:
 - typed contracts for interoperability
