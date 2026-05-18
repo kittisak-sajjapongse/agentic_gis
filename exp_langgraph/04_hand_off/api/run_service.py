@@ -160,17 +160,28 @@ class RunService:
             return None
 
         suffix = file_path.suffix.lower()
+        normalized_output_type = self._normalize_output_type(output_type)
+        known_output_types = {"GEOPARQUET_LAYER", "GEOTIFF_LAYER"}
+        if (
+            normalized_output_type is not None
+            and normalized_output_type not in known_output_types
+        ):
+            logger.warning(
+                "Unknown output_type=%s for path=%s; applying suffix-based fallback",
+                output_type,
+                str(file_path),
+            )
         content_type = "application/octet-stream"
         kind = "geojson"
         source_type = "geojson"
         style = LayerStyle(preset="line-default")
 
-        if output_type == "GEOTIFF_LAYER" or suffix in {".tif", ".tiff"}:
+        if normalized_output_type == "GEOTIFF_LAYER" or suffix in {".tif", ".tiff"}:
             content_type = "image/tiff"
             kind = "raster"
             source_type = "raster"
             style = LayerStyle(preset="raster-default")
-        elif output_type == "GEOPARQUET_LAYER" or suffix == ".parquet":
+        elif normalized_output_type == "GEOPARQUET_LAYER" or suffix == ".parquet":
             content_type = "application/vnd.apache.parquet"
             kind = "geojson"
             source_type = "geojson"
@@ -202,6 +213,18 @@ class RunService:
         )
         layer_service.add_layer(session_id, layer)
         return layer
+
+    def _normalize_output_type(self, output_type: Any) -> str | None:
+        if not isinstance(output_type, str):
+            return None
+        normalized = output_type.strip().upper()
+        aliases = {
+            "GEOPARQUET": "GEOPARQUET_LAYER",
+            "GEOPARQUET_LAYER": "GEOPARQUET_LAYER",
+            "GEOTIFF": "GEOTIFF_LAYER",
+            "GEOTIFF_LAYER": "GEOTIFF_LAYER",
+        }
+        return aliases.get(normalized, normalized)
 
     def subscribe(self, run_id: str) -> AsyncIterator[dict[str, Any]]:
         """Subscribe to run events as an async iterator for SSE streaming.
