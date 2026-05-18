@@ -22,7 +22,7 @@ Scope is proof-of-concept only.
 | [UI-004](#UI-004) | - | DONE | Codex | 2026-05-18 |
 | [BACKEND-012](#BACKEND-012) | EPIC-HITL-001 | DONE | Codex | 2026-05-18 |
 | [UI-007](#UI-007) | EPIC-HITL-001 | TODO | Unassigned | - |
-| [BACKEND-013](#BACKEND-013) | EPIC-HITL-001 | TODO | Unassigned | - |
+| [BACKEND-013](#BACKEND-013) | EPIC-HITL-001 | DONE | Codex | 2026-05-18 |
 | [QA-003](#QA-003) | EPIC-HITL-001 | TODO | Unassigned | - |
 | [BACKEND-007](#BACKEND-007) | - | TODO | Unassigned | - |
 | [BACKEND-008](#BACKEND-008) | - | TODO | Unassigned | - |
@@ -402,7 +402,7 @@ Scope is proof-of-concept only.
 
 <a id="BACKEND-013"></a>
 
-## BACKEND-013 [TODO] - Add run resume API for interrupt continuation
+## BACKEND-013 [DONE] - Add run resume API for interrupt continuation
 **Component:** BACKEND
 **EPIC:** `EPIC-HITL-001`
 

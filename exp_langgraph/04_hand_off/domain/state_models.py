@@ -102,6 +102,12 @@ class ChatRequest(BaseModel):
     context: Optional[Dict[str, Any]] = None
 
 
+class ResumeRunRequest(BaseModel):
+    # Request body for POST /api/runs/{run_id}/resume
+    interruptId: str
+    answer: str
+
+
 class RunModel(BaseModel):
     # Used by RunService for run status tracking and polling responses.
     runId: str

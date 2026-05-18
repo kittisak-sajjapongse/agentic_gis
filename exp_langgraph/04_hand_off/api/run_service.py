@@ -9,6 +9,7 @@ from typing import Any, AsyncIterator
 from uuid import uuid4
 
 from langchain_core.messages import HumanMessage
+from langgraph.types import Command
 
 from api.layer_service import LayerService
 from domain.state_models import LayerDescriptor, LayerSource, LayerStyle, RunModel
@@ -24,6 +25,9 @@ class RunService:
     def __init__(self) -> None:
         self._runs: dict[str, RunModel] = {}
         self._subscribers: dict[str, list[asyncio.Queue[dict[str, Any]]]] = {}
+        # POC in-memory execution context store for resume support.
+        self._graphs: dict[str, Any] = {}
+        self._configs: dict[str, dict[str, Any]] = {}
 
     def _now_iso(self) -> str:
         return datetime.now(timezone.utc).isoformat()
@@ -289,6 +293,8 @@ class RunService:
             # to avoid rebuilding the graph/tool stack on every chat run.
             graph = await build_main_graph()
             config = {"configurable": {"thread_id": session_id}}
+            self._graphs[run_id] = graph
+            self._configs[run_id] = config
             inputs = {"_messages": [HumanMessage(content=message)]}
 
             async for _ in graph.astream(inputs, config=config):
@@ -355,6 +361,8 @@ class RunService:
                 "done",
                 {"status": "completed"},
             )
+            self._graphs.pop(run_id, None)
+            self._configs.pop(run_id, None)
         except Exception as exc:
             actionable = self._actionable_error_message(exc)
             logger.exception(
@@ -381,3 +389,113 @@ class RunService:
                 "error",
                 {"message": str(exc), "actionable": actionable},
             )
+            self._graphs.pop(run_id, None)
+            self._configs.pop(run_id, None)
+
+    async def resume_run(
+        self,
+        run_id: str,
+        interrupt_id: str,
+        answer: str,
+        layer_service: LayerService | None = None,
+        artifact_provider: ArtifactProvider | None = None,
+    ) -> RunModel:
+        run = self.get_run(run_id)
+        if run is None:
+            raise KeyError("Run not found")
+        if run.status != "interrupted":
+            raise ValueError("Run is not in interrupted state")
+        if run.pendingInterruptId != interrupt_id:
+            raise ValueError("Interrupt ID does not match pending run interrupt")
+
+        graph = self._graphs.get(run_id)
+        config = self._configs.get(run_id)
+        if graph is None or config is None:
+            raise RuntimeError(
+                "Resume context unavailable for run. "
+                "Start a new run (POC limitation: in-memory graph context)."
+            )
+
+        self._update_run(
+            run_id,
+            status="running",
+            pendingInterruptId=None,
+            pendingQuestion=None,
+            error=None,
+        )
+        self._emit_event(run_id, "message", {"text": "Run resumed", "status": "running"})
+        self._emit_event(run_id, "tool_start", {"tool": "main_graph", "status": "resumed"})
+        try:
+            inputs = Command(resume={interrupt_id: answer})
+            async for _ in graph.astream(inputs, config=config):
+                pass
+
+            state = await graph.aget_state(config)
+            if layer_service is not None and artifact_provider is not None:
+                outputs = state.values.get("outputs") if state and state.values else None
+                if isinstance(outputs, list):
+                    for output in outputs:
+                        if not isinstance(output, dict):
+                            continue
+                        layer = self._build_layer_from_output(
+                            session_id=run.sessionId,
+                            run_id=run_id,
+                            output=output,
+                            layer_service=layer_service,
+                            artifact_provider=artifact_provider,
+                        )
+                        if layer is not None:
+                            self._emit_event(run_id, "layer_created", {"layerId": layer.id})
+
+            if state.interrupts:
+                interrupt_id2, question2 = self._extract_clarification(state)
+                self._update_run(
+                    run_id,
+                    status="interrupted",
+                    pendingInterruptId=interrupt_id2,
+                    pendingQuestion=question2,
+                )
+                self._emit_event(run_id, "tool_end", {"tool": "main_graph", "status": "interrupted"})
+                self._emit_event(
+                    run_id,
+                    "clarification_required",
+                    {
+                        "interruptId": interrupt_id2,
+                        "question": question2 or "Need clarification to continue.",
+                    },
+                )
+                return self.get_run(run_id)  # type: ignore[return-value]
+
+            self._update_run(
+                run_id,
+                status="completed",
+                finishedAt=self._now_iso(),
+                pendingInterruptId=None,
+                pendingQuestion=None,
+            )
+            self._emit_event(run_id, "tool_end", {"tool": "main_graph", "status": "completed"})
+            self._emit_event(run_id, "done", {"status": "completed"})
+            self._graphs.pop(run_id, None)
+            self._configs.pop(run_id, None)
+            return self.get_run(run_id)  # type: ignore[return-value]
+        except Exception as exc:
+            actionable = self._actionable_error_message(exc)
+            logger.exception(
+                "Run resume failed run_id=%s session_id=%s error=%s actionable=%s\n%s",
+                run_id,
+                run.sessionId,
+                str(exc),
+                actionable,
+                traceback.format_exc(),
+            )
+            self._update_run(
+                run_id,
+                status="failed",
+                error=str(exc),
+                finishedAt=self._now_iso(),
+            )
+            self._emit_event(run_id, "tool_end", {"tool": "main_graph", "status": "failed"})
+            self._emit_event(run_id, "error", {"message": str(exc), "actionable": actionable})
+            self._graphs.pop(run_id, None)
+            self._configs.pop(run_id, None)
+            return self.get_run(run_id)  # type: ignore[return-value]
