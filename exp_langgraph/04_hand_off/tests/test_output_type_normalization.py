@@ -41,7 +41,7 @@ def _build_fake_graph_factory(outputs):
 
 
 async def _run_test() -> None:
-    parquet_path = str(Path("data/hotspot_2025.parquet"))
+    parquet_path = str(Path("data/burnscar_2025_01.parquet"))
     assert Path(parquet_path).exists(), "Expected fixture parquet file under data/"
 
     outputs = [

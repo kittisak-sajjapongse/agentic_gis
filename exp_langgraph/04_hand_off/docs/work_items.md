@@ -26,7 +26,7 @@ Scope is proof-of-concept only.
 | [QA-003](#QA-003) | EPIC-HITL-001 | DONE | Codex | 2026-05-18 |
 | [BACKEND-014](#BACKEND-014) | EPIC-RENDER-001 | DONE | Codex | 2026-05-18 |
 | [BACKEND-015](#BACKEND-015) | EPIC-RENDER-001 | DONE | Codex | 2026-05-18 |
-| [QA-004](#QA-004) | EPIC-RENDER-001 | TODO | Unassigned | - |
+| [QA-004](#QA-004) | EPIC-RENDER-001 | DONE | Unassigned | - |
 | [BACKEND-007](#BACKEND-007) | - | TODO | Unassigned | - |
 | [BACKEND-008](#BACKEND-008) | - | TODO | Unassigned | - |
 | [BACKEND-010](#BACKEND-010) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
@@ -521,7 +521,7 @@ Scope is proof-of-concept only.
 
 <a id="QA-004"></a>
 
-## QA-004 [TODO] - Add render-compatibility regression checks for generated outputs
+## QA-004 [DONE] - Add render-compatibility regression checks for generated outputs
 **Component:** QA
 **EPIC:** `EPIC-RENDER-001`
 
