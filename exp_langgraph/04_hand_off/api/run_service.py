@@ -22,12 +22,15 @@ logger = logging.getLogger(__name__)
 
 
 class RunService:
-    def __init__(self) -> None:
+    def __init__(self, data_mount_dir: str | None = None) -> None:
         self._runs: dict[str, RunModel] = {}
         self._subscribers: dict[str, list[asyncio.Queue[dict[str, Any]]]] = {}
         # POC in-memory execution context store for resume support.
         self._graphs: dict[str, Any] = {}
         self._configs: dict[str, dict[str, Any]] = {}
+        self._data_mount_dir = (
+            Path(data_mount_dir) if data_mount_dir else (Path.cwd() / "data")
+        )
 
     def _now_iso(self) -> str:
         return datetime.now(timezone.utc).isoformat()
@@ -149,13 +152,7 @@ class RunService:
         if not isinstance(output_path, str) or not output_path:
             return None
 
-        # Normalize '/data/..' outputs to current workspace relative path for POC.
-        normalized_path = (
-            str(Path.cwd() / output_path.removeprefix("/data/"))
-            if output_path.startswith("/data/")
-            else output_path
-        )
-        file_path = Path(normalized_path)
+        file_path = self._resolve_output_path(output_path)
         if not file_path.exists() or not file_path.is_file():
             return None
 
@@ -234,6 +231,16 @@ class RunService:
         )
         layer_service.add_layer(session_id, layer)
         return layer
+
+    def _resolve_output_path(self, output_path: str) -> Path:
+        raw = Path(output_path)
+        if raw.exists():
+            return raw
+        # Agent tooling often emits container paths under /data/<file>.*
+        # Map those to backend-visible host mount dir (default: <repo>/data).
+        if output_path.startswith("/data/"):
+            return self._data_mount_dir / output_path.removeprefix("/data/")
+        return raw
 
     def _convert_parquet_to_geojson(self, parquet_path: Path, run_id: str) -> Path | None:
         try:
@@ -463,21 +470,7 @@ class RunService:
         layer_service: LayerService | None = None,
         artifact_provider: ArtifactProvider | None = None,
     ) -> RunModel:
-        run = self.get_run(run_id)
-        if run is None:
-            raise KeyError("Run not found")
-        if run.status != "interrupted":
-            raise ValueError("Run is not in interrupted state")
-        if run.pendingInterruptId != interrupt_id:
-            raise ValueError("Interrupt ID does not match pending run interrupt")
-
-        graph = self._graphs.get(run_id)
-        config = self._configs.get(run_id)
-        if graph is None or config is None:
-            raise RuntimeError(
-                "Resume context unavailable for run. "
-                "Start a new run (POC limitation: in-memory graph context)."
-            )
+        run, graph, config = self.validate_resume_request(run_id, interrupt_id)
 
         self._update_run(
             run_id,
@@ -562,3 +555,21 @@ class RunService:
             self._graphs.pop(run_id, None)
             self._configs.pop(run_id, None)
             return self.get_run(run_id)  # type: ignore[return-value]
+
+    def validate_resume_request(self, run_id: str, interrupt_id: str) -> tuple[RunModel, Any, dict[str, Any]]:
+        run = self.get_run(run_id)
+        if run is None:
+            raise KeyError("Run not found")
+        if run.status != "interrupted":
+            raise ValueError("Run is not in interrupted state")
+        if run.pendingInterruptId != interrupt_id:
+            raise ValueError("Interrupt ID does not match pending run interrupt")
+
+        graph = self._graphs.get(run_id)
+        config = self._configs.get(run_id)
+        if graph is None or config is None:
+            raise RuntimeError(
+                "Resume context unavailable for run. "
+                "Start a new run (POC limitation: in-memory graph context)."
+            )
+        return run, graph, config
