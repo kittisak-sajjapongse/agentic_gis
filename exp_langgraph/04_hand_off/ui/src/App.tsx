@@ -186,6 +186,9 @@ export function App() {
       for (const layer of layers) {
         const sourceId = `src_${layer.id}`;
         const layerId = `lyr_${layer.id}`;
+        const pointLayerId = `${layerId}_point`;
+        const lineLayerId = `${layerId}_line`;
+        const fillLayerId = `${layerId}_fill`;
 
         if (!existingSourceIds.has(sourceId)) {
           if (layer.source.type === 'geojson' && layer.source.url) {
@@ -199,8 +202,8 @@ export function App() {
           continue;
         }
 
-        if (!existingLayerIds.has(layerId)) {
-          if (layer.kind === 'raster') {
+        if (layer.kind === 'raster') {
+          if (!existingLayerIds.has(layerId)) {
             map.addLayer({
               id: layerId,
               type: 'raster',
@@ -210,10 +213,35 @@ export function App() {
               },
             });
           } else {
+            map.setLayoutProperty(layerId, 'visibility', layer.visible ? 'visible' : 'none');
+          }
+        } else {
+          if (!existingLayerIds.has(pointLayerId)) {
             map.addLayer({
-              id: layerId,
+              id: pointLayerId,
+              type: 'circle',
+              source: sourceId,
+              filter: ['==', ['geometry-type'], 'Point'],
+              paint: {
+                'circle-color': '#d62828',
+                'circle-radius': 5,
+                'circle-stroke-color': '#ffffff',
+                'circle-stroke-width': 1,
+              },
+              layout: {
+                visibility: layer.visible ? 'visible' : 'none',
+              },
+            });
+          } else {
+            map.setLayoutProperty(pointLayerId, 'visibility', layer.visible ? 'visible' : 'none');
+          }
+
+          if (!existingLayerIds.has(lineLayerId)) {
+            map.addLayer({
+              id: lineLayerId,
               type: 'line',
               source: sourceId,
+              filter: ['==', ['geometry-type'], 'LineString'],
               paint: {
                 'line-color': '#d62828',
                 'line-width': 2,
@@ -222,9 +250,28 @@ export function App() {
                 visibility: layer.visible ? 'visible' : 'none',
               },
             });
+          } else {
+            map.setLayoutProperty(lineLayerId, 'visibility', layer.visible ? 'visible' : 'none');
           }
-        } else {
-          map.setLayoutProperty(layerId, 'visibility', layer.visible ? 'visible' : 'none');
+
+          if (!existingLayerIds.has(fillLayerId)) {
+            map.addLayer({
+              id: fillLayerId,
+              type: 'fill',
+              source: sourceId,
+              filter: ['==', ['geometry-type'], 'Polygon'],
+              paint: {
+                'fill-color': '#d62828',
+                'fill-opacity': 0.25,
+                'fill-outline-color': '#9d0208',
+              },
+              layout: {
+                visibility: layer.visible ? 'visible' : 'none',
+              },
+            });
+          } else {
+            map.setLayoutProperty(fillLayerId, 'visibility', layer.visible ? 'visible' : 'none');
+          }
         }
       }
     };
