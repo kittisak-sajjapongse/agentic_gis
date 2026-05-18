@@ -242,7 +242,7 @@ export function App() {
               id: pointLayerId,
               type: 'circle',
               source: sourceId,
-              filter: ['==', ['geometry-type'], 'Point'],
+              filter: ['match', ['geometry-type'], ['Point', 'MultiPoint'], true, false],
               paint: {
                 'circle-color': '#d62828',
                 'circle-radius': 5,
@@ -262,7 +262,7 @@ export function App() {
               id: lineLayerId,
               type: 'line',
               source: sourceId,
-              filter: ['==', ['geometry-type'], 'LineString'],
+              filter: ['match', ['geometry-type'], ['LineString', 'MultiLineString'], true, false],
               paint: {
                 'line-color': '#d62828',
                 'line-width': 2,
@@ -280,7 +280,7 @@ export function App() {
               id: fillLayerId,
               type: 'fill',
               source: sourceId,
-              filter: ['==', ['geometry-type'], 'Polygon'],
+              filter: ['match', ['geometry-type'], ['Polygon', 'MultiPolygon'], true, false],
               paint: {
                 'fill-color': '#d62828',
                 'fill-opacity': 0.25,
