@@ -53,6 +53,35 @@ type PendingClarification = {
   question: string;
 };
 
+const SESSION_STORAGE_KEY = 'gis_poc_session_id';
+let createSessionPromise: Promise<string> | null = null;
+
+async function getOrCreateSessionId(): Promise<string> {
+  const stored = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
+  if (stored) {
+    return stored;
+  }
+  if (!createSessionPromise) {
+    createSessionPromise = (async () => {
+      const response = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      if (!response.ok) {
+        throw new Error(`Unable to create session: HTTP ${response.status}`);
+      }
+      const payload = (await response.json()) as { sessionId: string };
+      window.sessionStorage.setItem(SESSION_STORAGE_KEY, payload.sessionId);
+      return payload.sessionId;
+    })();
+    createSessionPromise.finally(() => {
+      createSessionPromise = null;
+    });
+  }
+  return createSessionPromise;
+}
+
 function HealthBadge() {
   const [health, setHealth] = useState<HealthState>({ state: 'loading' });
 
@@ -126,16 +155,8 @@ export function App() {
     async function bootstrapSession() {
       setLayerError(null);
       try {
-        const response = await fetch('/api/sessions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
-        });
-        if (!response.ok) {
-          throw new Error(`Unable to create session: HTTP ${response.status}`);
-        }
-        const payload = (await response.json()) as { sessionId: string };
-        setSessionId(payload.sessionId);
+        const sid = await getOrCreateSessionId();
+        setSessionId(sid);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown session error';
         setLayerError(message);
@@ -393,6 +414,20 @@ export function App() {
       const es = new EventSource(`/api/runs/${runId}/stream`);
       eventSourceRef.current = es;
       let expectedClose = false;
+      let refreshTimer: number | null = null;
+
+      const stopRefreshTimer = () => {
+        if (refreshTimer !== null) {
+          window.clearInterval(refreshTimer);
+          refreshTimer = null;
+        }
+      };
+
+      // Fallback synchronization: if a specific SSE event is missed due to
+      // timing, periodic layer reload still converges UI state for the run.
+      refreshTimer = window.setInterval(() => {
+        void reloadLayers(sessionId);
+      }, 2000);
 
       const onAnyEvent = async (eventName: string, ev: MessageEvent) => {
         const data = JSON.parse(ev.data) as SseEventPayload;
@@ -438,6 +473,7 @@ export function App() {
             ]);
           }
           setChatBusy(false);
+          stopRefreshTimer();
           expectedClose = true;
           es.close();
           if (eventSourceRef.current === es) {
@@ -456,8 +492,10 @@ export function App() {
         ]);
 
         if (eventName === 'done' || eventName === 'error') {
+          await reloadLayers(sessionId);
           setPendingClarification(null);
           setChatBusy(false);
+          stopRefreshTimer();
           expectedClose = true;
           es.close();
           if (eventSourceRef.current === es) {
@@ -473,6 +511,7 @@ export function App() {
       });
 
       es.onerror = () => {
+        stopRefreshTimer();
         if (expectedClose) {
           return;
         }
@@ -482,11 +521,16 @@ export function App() {
         ]);
         setChatBusy(false);
         es.close();
+        if (eventSourceRef.current === es) {
+          eventSourceRef.current = null;
+        }
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown chat error';
       setChatMessages((prev) => [...prev, { id: crypto.randomUUID(), role: 'system', text: message }]);
       setChatBusy(false);
+      eventSourceRef.current?.close();
+      eventSourceRef.current = null;
     }
   }
 
