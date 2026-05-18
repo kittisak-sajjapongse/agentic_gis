@@ -19,7 +19,11 @@ Scope is proof-of-concept only.
 | [UI-001](#UI-001) | - | DONE | Codex | 2026-05-16 |
 | [UI-002](#UI-002) | - | DONE | Codex | 2026-05-17 |
 | [UI-003](#UI-003) | - | DONE | Codex | 2026-05-17 |
-| [UI-004](#UI-004) | - | TODO | Unassigned | - |
+| [UI-004](#UI-004) | - | DONE | Codex | 2026-05-18 |
+| [BACKEND-012](#BACKEND-012) | EPIC-HITL-001 | TODO | Unassigned | - |
+| [UI-007](#UI-007) | EPIC-HITL-001 | TODO | Unassigned | - |
+| [BACKEND-013](#BACKEND-013) | EPIC-HITL-001 | TODO | Unassigned | - |
+| [QA-003](#QA-003) | EPIC-HITL-001 | TODO | Unassigned | - |
 | [BACKEND-007](#BACKEND-007) | - | TODO | Unassigned | - |
 | [BACKEND-008](#BACKEND-008) | - | TODO | Unassigned | - |
 | [BACKEND-010](#BACKEND-010) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
@@ -313,7 +317,7 @@ Scope is proof-of-concept only.
 
 <a id="UI-004"></a>
 
-## UI-004 [TODO] - Auto-add agent output layers from SSE events
+## UI-004 [DONE] - Auto-add agent output layers from SSE events
 **Component:** UI
 
 **Goal**
@@ -332,6 +336,119 @@ Scope is proof-of-concept only.
 1. Execute prompt that generates layer output.
 2. Confirm `layer_created` causes immediate map update.
 3. Toggle new layer and confirm behavior.
+
+---
+
+## EPIC-HITL-001 - Human-in-the-Loop Resume Flow
+**Feature Goal**
+- When agents request clarification, UI should present the question and allow user to continue the same run without treating it as a transport failure.
+
+**Priority**
+- Immediate / blocking for current POC usability.
+
+---
+
+<a id="BACKEND-012"></a>
+
+## BACKEND-012 [TODO] - Emit HITL-specific SSE event and stop treating interrupt as generic error
+**Component:** BACKEND
+**EPIC:** `EPIC-HITL-001`
+
+**Goal**
+- Distinguish clarification interrupts from failures in the run event stream.
+
+**Deliverables**
+- Add SSE event type: `clarification_required`.
+- Payload includes interrupt id + user-facing question.
+- Keep run status as `interrupted` (not `failed`) for clarification paths.
+- Avoid emitting generic `error` event for expected clarification interrupts.
+
+**Acceptance Criteria**
+- Clarification case emits `clarification_required`.
+- UI no longer receives misleading terminal error for normal HITL requests.
+
+**Verification**
+1. Trigger prompt that causes clarification.
+2. Confirm SSE includes `clarification_required` with `question`.
+3. Confirm run status is `interrupted`, not `failed`.
+
+---
+
+<a id="UI-007"></a>
+
+## UI-007 [TODO] - Add chat HITL state and clarification input flow
+**Component:** UI
+**EPIC:** `EPIC-HITL-001`
+
+**Goal**
+- Let user answer agent clarification questions directly in the chat panel.
+
+**Deliverables**
+- Render `clarification_required` event distinctly in chat UI.
+- Preserve interrupt metadata (`runId`, `interruptId`) in local state.
+- Show “Awaiting clarification” UI state instead of SSE connection error for this path.
+- Submit clarification answer to backend resume endpoint.
+
+**Acceptance Criteria**
+- User can respond to clarification prompt in UI.
+- UI state transitions: running -> clarification needed -> resumed running -> terminal.
+
+**Verification**
+1. Trigger clarification.
+2. Enter answer in chat.
+3. Confirm run resumes and completes/continues.
+
+---
+
+<a id="BACKEND-013"></a>
+
+## BACKEND-013 [TODO] - Add run resume API for interrupt continuation
+**Component:** BACKEND
+**EPIC:** `EPIC-HITL-001`
+
+**Goal**
+- Provide explicit API to resume interrupted runs with user clarification text.
+
+**Deliverables**
+- `POST /api/runs/:runId/resume` endpoint.
+- Request includes interrupt context + answer text.
+- Resume executes graph continuation (`Command(resume=...)`) and continues SSE updates on same run.
+
+**Acceptance Criteria**
+- Valid resume request transitions run back to `running`.
+- Invalid/expired interrupt returns clear `400/404`.
+
+**Verification**
+1. Trigger clarification interrupt.
+2. Call resume endpoint with answer.
+3. Confirm run continues and emits subsequent events.
+
+---
+
+<a id="QA-003"></a>
+
+## QA-003 [TODO] - Add HITL clarification/resume regression checklist
+**Component:** QA
+**EPIC:** `EPIC-HITL-001`
+
+**Goal**
+- Ensure clarification workflows remain stable as chat/map features evolve.
+
+**Deliverables**
+- Checklist covering:
+  - clarification event emission
+  - UI clarification prompt rendering
+  - resume API success/failure cases
+  - resumed SSE stream continuity
+
+**Acceptance Criteria**
+- HITL path passes from initial run to resumed completion.
+- No false “SSE connection error” shown for expected clarification flow.
+
+**Verification**
+1. Execute scripted clarification scenario.
+2. Validate event timeline and UI states.
+3. Record defects with event traces.
 
 ---
 
