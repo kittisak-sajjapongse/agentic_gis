@@ -6,6 +6,7 @@ from langchain_core.messages import SystemMessage
 from langchain_core.tools import BaseTool
 
 from AgentBase import AgentBase
+from agents.json_response_parser import parse_llm_json_object
 from domain.state_models import IAgentState
 
 
@@ -101,7 +102,7 @@ class OpManager(AgentBase[IAgentState]):
         if not content.strip():
             raise ValueError("LLM returned empty content without tool_calls")
 
-        resp_js = json.loads(content)
+        resp_js = parse_llm_json_object(content)
         return {
             "clarification_question": resp_js.get("clarification_question"),
             "decline_message": resp_js.get("decline_message"),
