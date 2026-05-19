@@ -72,12 +72,15 @@ class RunService:
 
     def _terminal_event_for_run(self, run: RunModel) -> dict[str, Any] | None:
         if run.status == "completed":
+            payload: dict[str, Any] = {"status": "completed"}
+            if run.declineMessage:
+                payload["declineMessage"] = run.declineMessage
             return {
                 "type": "done",
                 "runId": run.runId,
                 "sessionId": run.sessionId,
                 "timestamp": self._now_iso(),
-                "payload": {"status": "completed"},
+                "payload": payload,
             }
         if run.status == "interrupted":
             return {
@@ -273,6 +276,19 @@ class RunService:
         }
         return aliases.get(normalized, normalized)
 
+    def _emit_decline_if_present(self, run_id: str, state: Any) -> None:
+        if not state or not getattr(state, "values", None):
+            return
+        decline_message = state.values.get("decline_message")
+        if isinstance(decline_message, str) and decline_message.strip():
+            clean_message = decline_message.strip()
+            self._update_run(run_id, declineMessage=clean_message)
+            self._emit_event(
+                run_id,
+                "decline",
+                {"message": clean_message},
+            )
+
     def subscribe(self, run_id: str) -> AsyncIterator[dict[str, Any]]:
         """Subscribe to run events as an async iterator for SSE streaming.
 
@@ -355,7 +371,7 @@ class RunService:
           via `_update_run(...)` and emits events via `_emit_event(...)`.
         - `subscribe()` readers receive those emitted events through queues.
         """
-        self._update_run(run_id, status="running")
+        self._update_run(run_id, status="running", declineMessage=None)
         self._emit_event(run_id, "message", {"text": "Run started", "status": "running"})
         self._emit_event(run_id, "tool_start", {"tool": "main_graph", "status": "started"})
         try:
@@ -371,6 +387,7 @@ class RunService:
                 pass
 
             state = await graph.aget_state(config)
+            self._emit_decline_if_present(run_id, state)
             if layer_service is not None and artifact_provider is not None:
                 outputs = state.values.get("outputs") if state and state.values else None
                 if isinstance(outputs, list):
@@ -478,6 +495,7 @@ class RunService:
             pendingInterruptId=None,
             pendingQuestion=None,
             error=None,
+            declineMessage=None,
         )
         self._emit_event(run_id, "message", {"text": "Run resumed", "status": "running"})
         self._emit_event(run_id, "tool_start", {"tool": "main_graph", "status": "resumed"})
@@ -487,6 +505,7 @@ class RunService:
                 pass
 
             state = await graph.aget_state(config)
+            self._emit_decline_if_present(run_id, state)
             if layer_service is not None and artifact_provider is not None:
                 outputs = state.values.get("outputs") if state and state.values else None
                 if isinstance(outputs, list):

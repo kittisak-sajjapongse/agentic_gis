@@ -482,6 +482,17 @@ export function App() {
           return;
         }
 
+        if (eventName === 'decline') {
+          const declineText = data.payload.message;
+          if (typeof declineText === 'string' && declineText.trim()) {
+            setChatMessages((prev) => [
+              ...prev,
+              { id: crypto.randomUUID(), role: 'system', text: `Declined: ${declineText}` },
+            ]);
+            return;
+          }
+        }
+
         setChatMessages((prev) => [
           ...prev,
           {
@@ -492,6 +503,13 @@ export function App() {
         ]);
 
         if (eventName === 'done' || eventName === 'error') {
+          const terminalDecline = data.payload.declineMessage;
+          if (typeof terminalDecline === 'string' && terminalDecline.trim()) {
+            setChatMessages((prev) => [
+              ...prev,
+              { id: crypto.randomUUID(), role: 'system', text: `Declined: ${terminalDecline}` },
+            ]);
+          }
           await reloadLayers(sessionId);
           setPendingClarification(null);
           setChatBusy(false);
@@ -504,7 +522,7 @@ export function App() {
         }
       };
 
-      ['message', 'tool_start', 'tool_end', 'layer_created', 'clarification_required', 'done', 'error'].forEach((name) => {
+      ['message', 'tool_start', 'tool_end', 'layer_created', 'clarification_required', 'decline', 'done', 'error'].forEach((name) => {
         es.addEventListener(name, (ev) => {
           void onAnyEvent(name, ev as MessageEvent);
         });
