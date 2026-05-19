@@ -7,6 +7,7 @@ from langchain_core.messages import SystemMessage
 from langchain_core.tools import BaseTool
 
 from AgentBase import AgentBase
+from agents.ir_normalization import normalize_ir_response
 from agents.json_response_parser import parse_llm_json_object
 from domain.state_models import IAgentState
 
@@ -97,7 +98,7 @@ class IrManager(AgentBase[IAgentState]):
         if not content.strip():
             raise ValueError("LLM returned empty content without tool_calls")
 
-        resp_js = parse_llm_json_object(content)
+        resp_js = normalize_ir_response(parse_llm_json_object(content))
         return {
             "user_language": resp_js["user_language"],
             "query_summary": resp_js["query_summary"],
