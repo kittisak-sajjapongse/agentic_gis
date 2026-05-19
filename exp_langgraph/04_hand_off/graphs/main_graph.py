@@ -12,6 +12,18 @@ from .output_producer_graph import (
 )
 
 
+def route_after_ir(state: IAgentState) -> bool:
+    """Route output of IR graph to OP graph only for explicitly accepted queries.
+
+    IR can emit decline paths where `is_query_accepted` is `None` (unset).
+    LangGraph conditional routing keys must match declared edges; returning
+    `None` here would raise KeyError(None). Treat any non-True value as decline.
+    Prompt improvements reduce frequency of bad values but should not be the
+    only safeguard.
+    """
+    return bool(state.get("is_query_accepted") is True)
+
+
 async def build_main_graph():
     workflow = StateGraph(IAgentState)
     ir_graph = build_input_retrieval_graph()
@@ -23,7 +35,7 @@ async def build_main_graph():
     workflow.add_edge(START, INPUT_RETRIEVAL_GRAPH_NAME)
     workflow.add_conditional_edges(
         INPUT_RETRIEVAL_GRAPH_NAME,
-        lambda state: state["is_query_accepted"],
+        route_after_ir,
         {
             True: OUTPUT_PRODUCER_GRAPH_NAME,
             False: END,
