@@ -38,6 +38,7 @@ Scope is proof-of-concept only.
 | [UI-005](#UI-005) | - | TODO | Unassigned | - |
 | [QA-001](#QA-001) | - | TODO | Unassigned | - |
 | [BACKEND-016](#BACKEND-016) | - | TODO | Unassigned | - |
+| [ARCH-001](#ARCH-001) | EPIC-LAYER-EDIT-001 | TODO | Unassigned | - |
 
 <a id="BACKEND-001"></a>
 
@@ -848,3 +849,43 @@ Scope is proof-of-concept only.
 1. Configure non-default container/host mount mapping in settings.
 2. Generate output path from agent as container path.
 3. Confirm backend resolves correct host path and registers artifact successfully.
+
+---
+
+<a id="ARCH-001"></a>
+
+## ARCH-001 [TODO] - Design agent-driven editing for existing session layers (design only)
+**Component:** ARCH
+**EPIC:** `EPIC-LAYER-EDIT-001`
+
+**Goal**
+- Define how users can ask the agent to modify previously created/imported session layers (for example style/color changes) with explicit, safe backend contracts.
+
+**Scope**
+- Design/documentation only for this work item.
+- No production code changes in agent/backend/UI implementation for this item.
+
+**Deliverables**
+- Extend `docs/architecture.md` with:
+  - end-to-end flow for “agent edits existing layer”
+  - channel/mechanism details between UI, backend, and agent graph
+  - clear separation between:
+    - data layer edits (geometry/properties), and
+    - presentation/style edits (color/opacity/visibility)
+- Add API contract draft (request/response + SSE events) for:
+  - listing session-editable layers for agent context
+  - agent-issued layer update action (likely via service/tool boundary)
+  - audit metadata (`runId`, actor, timestamp, reason/intent)
+- Update related docs for consistency:
+  - `docs/introduction.md`
+  - `docs/work_items.md` (follow-up implementation items split by component)
+
+**Acceptance Criteria**
+- Architecture docs clearly explain how a follow-up prompt like “change color of the previous layer to red” is resolved deterministically.
+- Proposed contracts avoid ambiguity when multiple candidate layers exist.
+- Design includes safeguards (authorization boundary, validation, race handling, idempotency/retry notes).
+
+**Verification**
+1. Review updated docs end-to-end for consistency and no conflicts.
+2. Trace one example interaction from UI prompt to final map update event.
+3. Confirm implementation follow-up items are identified and ordered in backlog.
