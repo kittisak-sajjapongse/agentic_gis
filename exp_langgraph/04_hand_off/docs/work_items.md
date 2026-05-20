@@ -28,6 +28,7 @@ Scope is proof-of-concept only.
 | [BACKEND-015](#BACKEND-015) | EPIC-RENDER-001 | DONE | Codex | 2026-05-18 |
 | [QA-004](#QA-004) | EPIC-RENDER-001 | DONE | Codex | 2026-05-18 |
 | [BACKEND-007](#BACKEND-007) | - | DONE | Codex | 2026-05-20 |
+| [QA-005](#QA-005) | - | TODO | Unassigned | - |
 | [BACKEND-008](#BACKEND-008) | - | TODO | Unassigned | - |
 | [BACKEND-010](#BACKEND-010) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
 | [AGENT-003](#AGENT-003) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
@@ -567,6 +568,32 @@ Scope is proof-of-concept only.
 1. Call catalog endpoint and capture one `catalogItemId`.
 2. Import it into session.
 3. Verify imported layer appears in session layer list and on UI map.
+
+---
+
+<a id="BACKEND-008"></a>
+
+## QA-005 [TODO] - Migrate existing tests to pytest (immediate)
+**Component:** QA
+
+**Goal**
+- Standardize test execution and reporting by converting script-style tests to pytest-based tests.
+
+**Deliverables**
+- Refactor existing `tests/*.py` workflow/regression scripts to pytest-compatible test modules/functions.
+- Add shared pytest fixtures where useful (for example API test client/bootstrap helpers).
+- Ensure tests can run via a single command (`pytest`) from repository root.
+- Document minimal test run commands in test files or README section if needed.
+
+**Acceptance Criteria**
+- Existing test coverage intent is preserved after migration.
+- `pytest` discovers and executes migrated tests successfully in configured environment.
+- No script-only test remains for covered scenarios unless explicitly documented as exception.
+
+**Verification**
+1. Run `pytest -q` (or equivalent) from repo root.
+2. Confirm migrated tests are discovered and executed.
+3. Confirm at least one API workflow test and one run/graph regression test pass.
 
 ---
 
