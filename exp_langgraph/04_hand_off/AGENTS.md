@@ -47,6 +47,7 @@ Before submitting changes:
   - `docs/introduction.md`
   - `docs/architecture.md`
   - `docs/work_items.md`
+  - `docs/coding_conventions.md`
 - Confirm the change follows the intended scope, API contracts, and current work-item priority/EPIC ordering.
 - If implementation intentionally deviates from these docs, document the reason and update the relevant doc(s) in the same change.
 
