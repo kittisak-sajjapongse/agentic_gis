@@ -108,6 +108,13 @@ class ChatRequest(BaseModel):
     context: Optional[Dict[str, Any]] = None
 
 
+class CatalogImportRequest(BaseModel):
+    # Request body for POST /api/sessions/{session_id}/layers/import
+    catalogItemId: str
+    # Optional display name override for the imported layer.
+    name: Optional[str] = None
+
+
 class ResumeRunRequest(BaseModel):
     # Request body for POST /api/runs/{run_id}/resume
     # Used specifically for HITL clarification continuation.

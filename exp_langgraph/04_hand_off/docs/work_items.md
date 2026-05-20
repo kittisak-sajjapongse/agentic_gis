@@ -27,7 +27,7 @@ Scope is proof-of-concept only.
 | [BACKEND-014](#BACKEND-014) | EPIC-RENDER-001 | DONE | Codex | 2026-05-18 |
 | [BACKEND-015](#BACKEND-015) | EPIC-RENDER-001 | DONE | Codex | 2026-05-18 |
 | [QA-004](#QA-004) | EPIC-RENDER-001 | DONE | Codex | 2026-05-18 |
-| [BACKEND-007](#BACKEND-007) | - | TODO | Unassigned | - |
+| [BACKEND-007](#BACKEND-007) | - | DONE | Codex | 2026-05-20 |
 | [BACKEND-008](#BACKEND-008) | - | TODO | Unassigned | - |
 | [BACKEND-010](#BACKEND-010) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
 | [AGENT-003](#AGENT-003) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
@@ -548,7 +548,7 @@ Scope is proof-of-concept only.
 
 <a id="BACKEND-007"></a>
 
-## BACKEND-007 [TODO] - Add POC catalog import endpoints for local GIS files
+## BACKEND-007 [DONE] - Add POC catalog import endpoints for local GIS files
 **Component:** BACKEND
 
 **Goal**
