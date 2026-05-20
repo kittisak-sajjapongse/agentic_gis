@@ -3,11 +3,6 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
-import sys
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
 import api.run_service as run_service_module
 from api.layer_service import LayerService
@@ -40,7 +35,7 @@ def _build_fake_graph_factory(outputs):
     return _fake_build_main_graph
 
 
-async def _run_test() -> None:
+async def _run_test_impl() -> None:
     parquet_path = str(Path("data/burnscar_2025_01.parquet"))
     assert Path(parquet_path).exists(), "Expected fixture parquet file under data/"
 
@@ -108,5 +103,5 @@ async def _run_test() -> None:
         logger.removeHandler(handler)
 
 
-if __name__ == "__main__":
-    asyncio.run(_run_test())
+def test_output_type_normalization() -> None:
+    asyncio.run(_run_test_impl())

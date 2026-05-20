@@ -157,13 +157,14 @@ New UI is expected as a separate subdirectory (`ui/`) to avoid mixing frontend c
 Implementation is planned as **ordered, testable work items** so each step can be verified before moving on.
 
 Reference backlog:
-- [work_items.md](/Users/kittisak/data/work/agentic_gis/exp_langgraph/04_hand_off/docs/work_items.md)
+- [work_items.md](./work_items.md)
 
 This allows:
 - progressive understanding of codebase and integration points
 - easier debugging and rollback scope
 - clearer progress tracking for technical and non-technical stakeholders
 - explicit handling of blocking features first (current: HITL resume flow)
+- standardized validation via `pytest`-based test suites
 
 ---
 
@@ -188,7 +189,7 @@ Because the UI consumes stable layer/artifact URLs and metadata contracts, stora
 ## Risks and Mitigations
 
 1. Contract drift between UI and backend
-- Mitigation: define typed models early and validate payloads in tests
+- Mitigation: define typed models early and validate payloads in `pytest` tests
 
 2. Event ordering/reliability in streaming flows
 - Mitigation: run-state model + explicit terminal events + reconnect behavior
@@ -215,6 +216,7 @@ The POC is successful when a new user can:
 
 ## Related Documents
 
-- Architecture details: [architecture.md](/Users/kittisak/data/work/agentic_gis/exp_langgraph/04_hand_off/docs/architecture.md)
-- Ordered implementation backlog: [work_items.md](/Users/kittisak/data/work/agentic_gis/exp_langgraph/04_hand_off/docs/work_items.md)
+- Architecture details: [architecture.md](./architecture.md)
+- Ordered implementation backlog: [work_items.md](./work_items.md)
+- Coding standards and test conventions: [coding_conventions.md](./coding_conventions.md)
 - Contributor boundary rules: `AGENTS.md`

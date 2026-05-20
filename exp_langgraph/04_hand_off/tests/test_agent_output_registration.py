@@ -39,14 +39,9 @@ What this test does NOT validate
 Those belong to a separate true end-to-end test path.
 """
 
-import asyncio
 import json
 from pathlib import Path
-import sys
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+import asyncio
 
 import api.run_service as run_service_module
 from api.layer_service import LayerService
@@ -89,7 +84,7 @@ def _build_fake_graph_factory(output_path: str):
     return _fake_build_main_graph
 
 
-async def _run_test() -> None:
+async def _run_test_impl() -> None:
     output_file = Path("data/test_generated_output.geojson")
     output_file.write_text(
         json.dumps({"type": "FeatureCollection", "features": []}),
@@ -148,5 +143,5 @@ async def _run_test() -> None:
             output_file.unlink()
 
 
-if __name__ == "__main__":
-    asyncio.run(_run_test())
+def test_agent_output_registration() -> None:
+    asyncio.run(_run_test_impl())
