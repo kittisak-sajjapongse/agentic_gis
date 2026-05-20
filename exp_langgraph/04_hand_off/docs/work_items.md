@@ -24,9 +24,9 @@ Scope is proof-of-concept only.
 | [UI-007](#UI-007) | EPIC-HITL-001 | DONE | Codex | 2026-05-18 |
 | [BACKEND-013](#BACKEND-013) | EPIC-HITL-001 | DONE | Codex | 2026-05-18 |
 | [QA-003](#QA-003) | EPIC-HITL-001 | DONE | Codex | 2026-05-18 |
-| [BACKEND-014](#BACKEND-014) | EPIC-RENDER-001 | TODO | Unassigned | - |
-| [BACKEND-015](#BACKEND-015) | EPIC-RENDER-001 | TODO | Unassigned | - |
-| [QA-004](#QA-004) | EPIC-RENDER-001 | TODO | Unassigned | - |
+| [BACKEND-014](#BACKEND-014) | EPIC-RENDER-001 | DONE | Codex | 2026-05-18 |
+| [BACKEND-015](#BACKEND-015) | EPIC-RENDER-001 | DONE | Codex | 2026-05-18 |
+| [QA-004](#QA-004) | EPIC-RENDER-001 | DONE | Codex | 2026-05-18 |
 | [BACKEND-007](#BACKEND-007) | - | TODO | Unassigned | - |
 | [BACKEND-008](#BACKEND-008) | - | TODO | Unassigned | - |
 | [BACKEND-010](#BACKEND-010) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
@@ -37,6 +37,7 @@ Scope is proof-of-concept only.
 | [BACKEND-009](#BACKEND-009) | - | TODO | Unassigned | - |
 | [UI-005](#UI-005) | - | TODO | Unassigned | - |
 | [QA-001](#QA-001) | - | TODO | Unassigned | - |
+| [BACKEND-016](#BACKEND-016) | - | TODO | Unassigned | - |
 
 <a id="BACKEND-001"></a>
 
@@ -466,7 +467,7 @@ Scope is proof-of-concept only.
 
 <a id="BACKEND-014"></a>
 
-## BACKEND-014 [TODO] - Normalize output types for layer generation
+## BACKEND-014 [DONE] - Normalize output types for layer generation
 **Component:** BACKEND
 **EPIC:** `EPIC-RENDER-001`
 
@@ -493,7 +494,7 @@ Scope is proof-of-concept only.
 
 <a id="BACKEND-015"></a>
 
-## BACKEND-015 [TODO] - Add POC GeoParquet -> GeoJSON conversion for map rendering
+## BACKEND-015 [DONE] - Add POC GeoParquet -> GeoJSON conversion for map rendering
 **Component:** BACKEND
 **EPIC:** `EPIC-RENDER-001`
 
@@ -520,7 +521,7 @@ Scope is proof-of-concept only.
 
 <a id="QA-004"></a>
 
-## QA-004 [TODO] - Add render-compatibility regression checks for generated outputs
+## QA-004 [DONE] - Add render-compatibility regression checks for generated outputs
 **Component:** QA
 **EPIC:** `EPIC-RENDER-001`
 
@@ -822,3 +823,28 @@ Scope is proof-of-concept only.
 1. Execute full checklist in order.
 2. Capture pass/fail results.
 3. Record defects and follow-up work items.
+
+---
+
+<a id="BACKEND-016"></a>
+
+## BACKEND-016 [TODO] - Add configurable container-path to host-path mapping for artifacts (low priority)
+**Component:** BACKEND
+**Priority:** Low
+
+**Goal**
+- Avoid hardcoded `/data -> ./data` assumptions when resolving agent-generated artifact paths from container execution.
+
+**Deliverables**
+- Path resolver that maps container output paths to host filesystem paths using runtime settings/config.
+- Support configurable mapping entries (for example container prefix + host mount dir).
+- Clear error/log when path cannot be resolved safely.
+
+**Acceptance Criteria**
+- Artifact resolution works for non-default mount configurations.
+- Existing default behavior remains backward-compatible.
+
+**Verification**
+1. Configure non-default container/host mount mapping in settings.
+2. Generate output path from agent as container path.
+3. Confirm backend resolves correct host path and registers artifact successfully.

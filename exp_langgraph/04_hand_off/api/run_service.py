@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
+import json
 from pathlib import Path
 import logging
 import traceback
 from typing import Any, AsyncIterator
 from uuid import uuid4
 
+import geopandas as gpd
 from langchain_core.messages import HumanMessage
 from langgraph.types import Command
+from pyproj import CRS
 
 from api.layer_service import LayerService
 from domain.state_models import LayerDescriptor, LayerSource, LayerStyle, RunModel
@@ -22,12 +25,15 @@ logger = logging.getLogger(__name__)
 
 
 class RunService:
-    def __init__(self) -> None:
+    def __init__(self, data_mount_dir: str | None = None) -> None:
         self._runs: dict[str, RunModel] = {}
         self._subscribers: dict[str, list[asyncio.Queue[dict[str, Any]]]] = {}
         # POC in-memory execution context store for resume support.
         self._graphs: dict[str, Any] = {}
         self._configs: dict[str, dict[str, Any]] = {}
+        self._data_mount_dir = (
+            Path(data_mount_dir) if data_mount_dir else (Path.cwd() / "data")
+        )
 
     def _now_iso(self) -> str:
         return datetime.now(timezone.utc).isoformat()
@@ -69,12 +75,15 @@ class RunService:
 
     def _terminal_event_for_run(self, run: RunModel) -> dict[str, Any] | None:
         if run.status == "completed":
+            payload: dict[str, Any] = {"status": "completed"}
+            if run.declineMessage:
+                payload["declineMessage"] = run.declineMessage
             return {
                 "type": "done",
                 "runId": run.runId,
                 "sessionId": run.sessionId,
                 "timestamp": self._now_iso(),
-                "payload": {"status": "completed"},
+                "payload": payload,
             }
         if run.status == "interrupted":
             return {
@@ -149,42 +158,77 @@ class RunService:
         if not isinstance(output_path, str) or not output_path:
             return None
 
-        # Normalize '/data/..' outputs to current workspace relative path for POC.
-        normalized_path = (
-            str(Path.cwd() / output_path.removeprefix("/data/"))
-            if output_path.startswith("/data/")
-            else output_path
-        )
-        file_path = Path(normalized_path)
+        file_path = self._resolve_output_path(output_path)
         if not file_path.exists() or not file_path.is_file():
             return None
 
         suffix = file_path.suffix.lower()
+        normalized_output_type = self._normalize_output_type(output_type)
+        known_output_types = {"GEOPARQUET_LAYER", "GEOTIFF_LAYER"}
+        if (
+            normalized_output_type is not None
+            and normalized_output_type not in known_output_types
+        ):
+            logger.warning(
+                "Unknown output_type=%s for path=%s; applying suffix-based fallback",
+                output_type,
+                str(file_path),
+            )
         content_type = "application/octet-stream"
         kind = "geojson"
         source_type = "geojson"
         style = LayerStyle(preset="line-default")
+        source_artifact_id: str | None = None
 
-        if output_type == "GEOTIFF_LAYER" or suffix in {".tif", ".tiff"}:
+        if normalized_output_type == "GEOTIFF_LAYER" or suffix in {".tif", ".tiff"}:
             content_type = "image/tiff"
             kind = "raster"
             source_type = "raster"
             style = LayerStyle(preset="raster-default")
-        elif output_type == "GEOPARQUET_LAYER" or suffix == ".parquet":
+        elif normalized_output_type == "GEOPARQUET_LAYER" or suffix == ".parquet":
             content_type = "application/vnd.apache.parquet"
             kind = "geojson"
             source_type = "geojson"
             style = LayerStyle(preset="line-default")
+            # Keep raw parquet artifact for audit/download and create a converted
+            # GeoJSON artifact for map rendering compatibility in the POC.
+            artifact_provider.register_artifact(
+                path=str(file_path),
+                content_type=content_type,
+            )
+            geojson_path = self._convert_parquet_to_geojson(file_path, run_id)
+            if geojson_path is not None:
+                normalized_geojson_path = self._normalize_geojson_to_epsg4326(
+                    geojson_path, run_id
+                )
+                source_path = normalized_geojson_path or geojson_path
+                converted = artifact_provider.register_artifact(
+                    path=str(source_path),
+                    content_type="application/geo+json",
+                )
+                source_artifact_id = converted.artifact_id
+            else:
+                logger.warning(
+                    "GeoParquet conversion failed for path=%s; falling back to raw artifact source",
+                    str(file_path),
+                )
         elif suffix == ".geojson":
             content_type = "application/geo+json"
             kind = "geojson"
             source_type = "geojson"
             style = LayerStyle(preset="line-default")
+            normalized_geojson_path = self._normalize_geojson_to_epsg4326(
+                file_path, run_id
+            )
+            if normalized_geojson_path is not None:
+                file_path = normalized_geojson_path
 
-        artifact = artifact_provider.register_artifact(
-            path=str(file_path),
-            content_type=content_type,
-        )
+        if source_artifact_id is None:
+            artifact = artifact_provider.register_artifact(
+                path=str(file_path),
+                content_type=content_type,
+            )
+            source_artifact_id = artifact.artifact_id
         layer_id = layer_service.create_layer_id(prefix="lyr_out")
         layer = LayerDescriptor(
             id=layer_id,
@@ -192,7 +236,7 @@ class RunService:
             kind=kind,  # type: ignore[arg-type]
             source=LayerSource(
                 type=source_type,
-                url=f"/api/artifacts/{artifact.artifact_id}/content",
+                url=f"/api/artifacts/{source_artifact_id}/content",
             ),
             style=style,
             visible=True,
@@ -202,6 +246,111 @@ class RunService:
         )
         layer_service.add_layer(session_id, layer)
         return layer
+
+    def _resolve_output_path(self, output_path: str) -> Path:
+        raw = Path(output_path)
+        if raw.exists():
+            return raw
+        # Agent tooling often emits container paths under /data/<file>.*
+        # Map those to backend-visible host mount dir (default: <repo>/data).
+        if output_path.startswith("/data/"):
+            return self._data_mount_dir / output_path.removeprefix("/data/")
+        return raw
+
+    def _convert_parquet_to_geojson(self, parquet_path: Path, run_id: str) -> Path | None:
+        try:
+            gdf = gpd.read_parquet(parquet_path)
+            output_path = parquet_path.with_name(
+                f"{parquet_path.stem}.run_{run_id}.geojson"
+            )
+            output_path.write_text(gdf.to_json(default=str), encoding="utf-8")
+            return output_path
+        except Exception as exc:
+            logger.exception(
+                "Failed to convert GeoParquet to GeoJSON path=%s run_id=%s error=%s",
+                str(parquet_path),
+                run_id,
+                str(exc),
+            )
+            return None
+
+    def _normalize_geojson_to_epsg4326(
+        self, geojson_path: Path, run_id: str
+    ) -> Path | None:
+        try:
+            gdf = gpd.read_file(geojson_path)
+
+            if gdf.crs is None:
+                payload = json.loads(geojson_path.read_text(encoding="utf-8"))
+                crs_name = (
+                    payload.get("crs", {})
+                    .get("properties", {})
+                    .get("name")
+                )
+                if crs_name:
+                    try:
+                        gdf = gdf.set_crs(CRS.from_user_input(crs_name))
+                    except Exception:
+                        logger.warning(
+                            "GeoJSON declared unparseable CRS=%s path=%s; keeping original geometry",
+                            crs_name,
+                            str(geojson_path),
+                        )
+
+            if gdf.crs is None:
+                logger.warning(
+                    "GeoJSON missing CRS path=%s; unable to normalize to EPSG:4326",
+                    str(geojson_path),
+                )
+                return None
+
+            if str(gdf.crs).upper() == "EPSG:4326":
+                return None
+
+            transformed = gdf.to_crs(epsg=4326)
+            output_path = geojson_path.with_name(
+                f"{geojson_path.stem}.run_{run_id}.epsg4326.geojson"
+            )
+            output_path.write_text(transformed.to_json(default=str), encoding="utf-8")
+            logger.info(
+                "Normalized GeoJSON CRS to EPSG:4326 source=%s output=%s",
+                str(geojson_path),
+                str(output_path),
+            )
+            return output_path
+        except Exception as exc:
+            logger.exception(
+                "Failed to normalize GeoJSON CRS path=%s run_id=%s error=%s",
+                str(geojson_path),
+                run_id,
+                str(exc),
+            )
+            return None
+
+    def _normalize_output_type(self, output_type: Any) -> str | None:
+        if not isinstance(output_type, str):
+            return None
+        normalized = output_type.strip().upper()
+        aliases = {
+            "GEOPARQUET": "GEOPARQUET_LAYER",
+            "GEOPARQUET_LAYER": "GEOPARQUET_LAYER",
+            "GEOTIFF": "GEOTIFF_LAYER",
+            "GEOTIFF_LAYER": "GEOTIFF_LAYER",
+        }
+        return aliases.get(normalized, normalized)
+
+    def _emit_decline_if_present(self, run_id: str, state: Any) -> None:
+        if not state or not getattr(state, "values", None):
+            return
+        decline_message = state.values.get("decline_message")
+        if isinstance(decline_message, str) and decline_message.strip():
+            clean_message = decline_message.strip()
+            self._update_run(run_id, declineMessage=clean_message)
+            self._emit_event(
+                run_id,
+                "decline",
+                {"message": clean_message},
+            )
 
     def subscribe(self, run_id: str) -> AsyncIterator[dict[str, Any]]:
         """Subscribe to run events as an async iterator for SSE streaming.
@@ -285,7 +434,7 @@ class RunService:
           via `_update_run(...)` and emits events via `_emit_event(...)`.
         - `subscribe()` readers receive those emitted events through queues.
         """
-        self._update_run(run_id, status="running")
+        self._update_run(run_id, status="running", declineMessage=None)
         self._emit_event(run_id, "message", {"text": "Run started", "status": "running"})
         self._emit_event(run_id, "tool_start", {"tool": "main_graph", "status": "started"})
         try:
@@ -301,6 +450,7 @@ class RunService:
                 pass
 
             state = await graph.aget_state(config)
+            self._emit_decline_if_present(run_id, state)
             if layer_service is not None and artifact_provider is not None:
                 outputs = state.values.get("outputs") if state and state.values else None
                 if isinstance(outputs, list):
@@ -400,21 +550,7 @@ class RunService:
         layer_service: LayerService | None = None,
         artifact_provider: ArtifactProvider | None = None,
     ) -> RunModel:
-        run = self.get_run(run_id)
-        if run is None:
-            raise KeyError("Run not found")
-        if run.status != "interrupted":
-            raise ValueError("Run is not in interrupted state")
-        if run.pendingInterruptId != interrupt_id:
-            raise ValueError("Interrupt ID does not match pending run interrupt")
-
-        graph = self._graphs.get(run_id)
-        config = self._configs.get(run_id)
-        if graph is None or config is None:
-            raise RuntimeError(
-                "Resume context unavailable for run. "
-                "Start a new run (POC limitation: in-memory graph context)."
-            )
+        run, graph, config = self.validate_resume_request(run_id, interrupt_id)
 
         self._update_run(
             run_id,
@@ -422,6 +558,7 @@ class RunService:
             pendingInterruptId=None,
             pendingQuestion=None,
             error=None,
+            declineMessage=None,
         )
         self._emit_event(run_id, "message", {"text": "Run resumed", "status": "running"})
         self._emit_event(run_id, "tool_start", {"tool": "main_graph", "status": "resumed"})
@@ -431,6 +568,7 @@ class RunService:
                 pass
 
             state = await graph.aget_state(config)
+            self._emit_decline_if_present(run_id, state)
             if layer_service is not None and artifact_provider is not None:
                 outputs = state.values.get("outputs") if state and state.values else None
                 if isinstance(outputs, list):
@@ -499,3 +637,21 @@ class RunService:
             self._graphs.pop(run_id, None)
             self._configs.pop(run_id, None)
             return self.get_run(run_id)  # type: ignore[return-value]
+
+    def validate_resume_request(self, run_id: str, interrupt_id: str) -> tuple[RunModel, Any, dict[str, Any]]:
+        run = self.get_run(run_id)
+        if run is None:
+            raise KeyError("Run not found")
+        if run.status != "interrupted":
+            raise ValueError("Run is not in interrupted state")
+        if run.pendingInterruptId != interrupt_id:
+            raise ValueError("Interrupt ID does not match pending run interrupt")
+
+        graph = self._graphs.get(run_id)
+        config = self._configs.get(run_id)
+        if graph is None or config is None:
+            raise RuntimeError(
+                "Resume context unavailable for run. "
+                "Start a new run (POC limitation: in-memory graph context)."
+            )
+        return run, graph, config

@@ -53,6 +53,35 @@ type PendingClarification = {
   question: string;
 };
 
+const SESSION_STORAGE_KEY = 'gis_poc_session_id';
+let createSessionPromise: Promise<string> | null = null;
+
+async function getOrCreateSessionId(): Promise<string> {
+  const stored = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
+  if (stored) {
+    return stored;
+  }
+  if (!createSessionPromise) {
+    createSessionPromise = (async () => {
+      const response = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      if (!response.ok) {
+        throw new Error(`Unable to create session: HTTP ${response.status}`);
+      }
+      const payload = (await response.json()) as { sessionId: string };
+      window.sessionStorage.setItem(SESSION_STORAGE_KEY, payload.sessionId);
+      return payload.sessionId;
+    })();
+    createSessionPromise.finally(() => {
+      createSessionPromise = null;
+    });
+  }
+  return createSessionPromise;
+}
+
 function HealthBadge() {
   const [health, setHealth] = useState<HealthState>({ state: 'loading' });
 
@@ -126,16 +155,8 @@ export function App() {
     async function bootstrapSession() {
       setLayerError(null);
       try {
-        const response = await fetch('/api/sessions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
-        });
-        if (!response.ok) {
-          throw new Error(`Unable to create session: HTTP ${response.status}`);
-        }
-        const payload = (await response.json()) as { sessionId: string };
-        setSessionId(payload.sessionId);
+        const sid = await getOrCreateSessionId();
+        setSessionId(sid);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown session error';
         setLayerError(message);
@@ -186,6 +207,9 @@ export function App() {
       for (const layer of layers) {
         const sourceId = `src_${layer.id}`;
         const layerId = `lyr_${layer.id}`;
+        const pointLayerId = `${layerId}_point`;
+        const lineLayerId = `${layerId}_line`;
+        const fillLayerId = `${layerId}_fill`;
 
         if (!existingSourceIds.has(sourceId)) {
           if (layer.source.type === 'geojson' && layer.source.url) {
@@ -199,8 +223,8 @@ export function App() {
           continue;
         }
 
-        if (!existingLayerIds.has(layerId)) {
-          if (layer.kind === 'raster') {
+        if (layer.kind === 'raster') {
+          if (!existingLayerIds.has(layerId)) {
             map.addLayer({
               id: layerId,
               type: 'raster',
@@ -210,10 +234,35 @@ export function App() {
               },
             });
           } else {
+            map.setLayoutProperty(layerId, 'visibility', layer.visible ? 'visible' : 'none');
+          }
+        } else {
+          if (!existingLayerIds.has(pointLayerId)) {
             map.addLayer({
-              id: layerId,
+              id: pointLayerId,
+              type: 'circle',
+              source: sourceId,
+              filter: ['match', ['geometry-type'], ['Point', 'MultiPoint'], true, false],
+              paint: {
+                'circle-color': '#d62828',
+                'circle-radius': 5,
+                'circle-stroke-color': '#ffffff',
+                'circle-stroke-width': 1,
+              },
+              layout: {
+                visibility: layer.visible ? 'visible' : 'none',
+              },
+            });
+          } else {
+            map.setLayoutProperty(pointLayerId, 'visibility', layer.visible ? 'visible' : 'none');
+          }
+
+          if (!existingLayerIds.has(lineLayerId)) {
+            map.addLayer({
+              id: lineLayerId,
               type: 'line',
               source: sourceId,
+              filter: ['match', ['geometry-type'], ['LineString', 'MultiLineString'], true, false],
               paint: {
                 'line-color': '#d62828',
                 'line-width': 2,
@@ -222,9 +271,28 @@ export function App() {
                 visibility: layer.visible ? 'visible' : 'none',
               },
             });
+          } else {
+            map.setLayoutProperty(lineLayerId, 'visibility', layer.visible ? 'visible' : 'none');
           }
-        } else {
-          map.setLayoutProperty(layerId, 'visibility', layer.visible ? 'visible' : 'none');
+
+          if (!existingLayerIds.has(fillLayerId)) {
+            map.addLayer({
+              id: fillLayerId,
+              type: 'fill',
+              source: sourceId,
+              filter: ['match', ['geometry-type'], ['Polygon', 'MultiPolygon'], true, false],
+              paint: {
+                'fill-color': '#d62828',
+                'fill-opacity': 0.25,
+                'fill-outline-color': '#9d0208',
+              },
+              layout: {
+                visibility: layer.visible ? 'visible' : 'none',
+              },
+            });
+          } else {
+            map.setLayoutProperty(fillLayerId, 'visibility', layer.visible ? 'visible' : 'none');
+          }
         }
       }
     };
@@ -346,6 +414,20 @@ export function App() {
       const es = new EventSource(`/api/runs/${runId}/stream`);
       eventSourceRef.current = es;
       let expectedClose = false;
+      let refreshTimer: number | null = null;
+
+      const stopRefreshTimer = () => {
+        if (refreshTimer !== null) {
+          window.clearInterval(refreshTimer);
+          refreshTimer = null;
+        }
+      };
+
+      // Fallback synchronization: if a specific SSE event is missed due to
+      // timing, periodic layer reload still converges UI state for the run.
+      refreshTimer = window.setInterval(() => {
+        void reloadLayers(sessionId);
+      }, 2000);
 
       const onAnyEvent = async (eventName: string, ev: MessageEvent) => {
         const data = JSON.parse(ev.data) as SseEventPayload;
@@ -391,12 +473,24 @@ export function App() {
             ]);
           }
           setChatBusy(false);
+          stopRefreshTimer();
           expectedClose = true;
           es.close();
           if (eventSourceRef.current === es) {
             eventSourceRef.current = null;
           }
           return;
+        }
+
+        if (eventName === 'decline') {
+          const declineText = data.payload.message;
+          if (typeof declineText === 'string' && declineText.trim()) {
+            setChatMessages((prev) => [
+              ...prev,
+              { id: crypto.randomUUID(), role: 'system', text: `Declined: ${declineText}` },
+            ]);
+            return;
+          }
         }
 
         setChatMessages((prev) => [
@@ -409,8 +503,17 @@ export function App() {
         ]);
 
         if (eventName === 'done' || eventName === 'error') {
+          const terminalDecline = data.payload.declineMessage;
+          if (typeof terminalDecline === 'string' && terminalDecline.trim()) {
+            setChatMessages((prev) => [
+              ...prev,
+              { id: crypto.randomUUID(), role: 'system', text: `Declined: ${terminalDecline}` },
+            ]);
+          }
+          await reloadLayers(sessionId);
           setPendingClarification(null);
           setChatBusy(false);
+          stopRefreshTimer();
           expectedClose = true;
           es.close();
           if (eventSourceRef.current === es) {
@@ -419,13 +522,14 @@ export function App() {
         }
       };
 
-      ['message', 'tool_start', 'tool_end', 'layer_created', 'clarification_required', 'done', 'error'].forEach((name) => {
+      ['message', 'tool_start', 'tool_end', 'layer_created', 'clarification_required', 'decline', 'done', 'error'].forEach((name) => {
         es.addEventListener(name, (ev) => {
           void onAnyEvent(name, ev as MessageEvent);
         });
       });
 
       es.onerror = () => {
+        stopRefreshTimer();
         if (expectedClose) {
           return;
         }
@@ -435,11 +539,16 @@ export function App() {
         ]);
         setChatBusy(false);
         es.close();
+        if (eventSourceRef.current === es) {
+          eventSourceRef.current = null;
+        }
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown chat error';
       setChatMessages((prev) => [...prev, { id: crypto.randomUUID(), role: 'system', text: message }]);
       setChatBusy(false);
+      eventSourceRef.current?.close();
+      eventSourceRef.current = null;
     }
   }
 

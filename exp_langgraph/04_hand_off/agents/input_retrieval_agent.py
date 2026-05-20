@@ -7,6 +7,8 @@ from langchain_core.messages import SystemMessage
 from langchain_core.tools import BaseTool
 
 from AgentBase import AgentBase
+from agents.ir_normalization import normalize_ir_response
+from agents.json_response_parser import parse_llm_json_object
 from domain.state_models import IAgentState
 
 
@@ -35,8 +37,8 @@ class IrManager(AgentBase[IAgentState]):
         2. Determine if user's prompt is a GIS-related question. If the prompt is not a question or is not GIS-related, simply decline and give a reason.
         3. Search your collection using tools provided to find useful GIS layers
         4. Note the details of the layers you selected and fill the detail into your response structure
-        5. If you can't find any suitable layer from the collection, determine and indicate if the layers required are of general knowledge
-        6. Accept user's prompt only if (1) the prompt is GIS-related, and (2) all required layers can be found
+        5. If you can't find any suitable layer from the collection, that's okay. User may ask to generate layer that doesn't exist in the catalog.
+        6. Accept user's prompt only if the prompt is GIS-related.
         7. If the user's prompt is not accepted, add reason in the declining message
         8. If the user's prompt is accepted, rewrite summary of user's request once you find out more information from the user.
         Note:
@@ -96,7 +98,7 @@ class IrManager(AgentBase[IAgentState]):
         if not content.strip():
             raise ValueError("LLM returned empty content without tool_calls")
 
-        resp_js = json.loads(content)
+        resp_js = normalize_ir_response(parse_llm_json_object(content))
         return {
             "user_language": resp_js["user_language"],
             "query_summary": resp_js["query_summary"],

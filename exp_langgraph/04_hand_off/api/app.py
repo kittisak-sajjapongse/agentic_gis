@@ -12,14 +12,16 @@ from .layer_service import LayerService
 from .run_service import RunService
 from .session_service import SessionService
 from domain.state_models import ChatRequest, LayerPatchRequest, ResumeRunRequest
+from runtime.settings import AppSettings
 from tools import LocalArtifactProvider
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title="04_hand_off API", version="0.1.0")
+    settings = AppSettings.from_env()
     session_service = SessionService()
     layer_service = LayerService()
-    run_service = RunService()
+    run_service = RunService(data_mount_dir=settings.data_mount_dir)
     artifact_provider = LocalArtifactProvider()
     app.state.layer_service = layer_service
     app.state.run_service = run_service
@@ -133,18 +135,22 @@ def create_app() -> FastAPI:
 
     @app.post("/api/runs/{run_id}/resume")
     async def resume_run(run_id: str, payload: ResumeRunRequest) -> dict:
-        run = run_service.get_run(run_id)
-        if run is None:
-            raise HTTPException(status_code=404, detail="Run not found")
         try:
-            updated = await run_service.resume_run(
-                run_id=run_id,
-                interrupt_id=payload.interruptId,
-                answer=payload.answer,
-                layer_service=layer_service,
-                artifact_provider=artifact_provider,
+            # Validate resume request synchronously so API can fail fast on
+            # invalid run/interrupt ids before scheduling background execution.
+            run_service.validate_resume_request(run_id, payload.interruptId)
+            # Resume runs in background so clients can subscribe to SSE first
+            # and receive live events (layer_created, tool_end, done/error).
+            asyncio.create_task(
+                run_service.resume_run(
+                    run_id=run_id,
+                    interrupt_id=payload.interruptId,
+                    answer=payload.answer,
+                    layer_service=layer_service,
+                    artifact_provider=artifact_provider,
+                )
             )
-            return updated.model_dump()
+            return {"runId": run_id}
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
