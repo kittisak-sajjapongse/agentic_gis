@@ -54,6 +54,9 @@ This document defines practical coding conventions for this codebase.
 ## 9) Testing and Verification
 - Add focused regression tests for each bug fixed.
 - Keep tests runnable as small scripts where practical.
+- Use file naming to indicate test intent:
+  - `test_workflow_*.py` for end-to-end or user workflow tests
+  - `test_<component>_<behavior>.py` for focused unit/regression checks
 - Run compile checks after edits:
   - `python3 -m py_compile $(rg --files -g '*.py')`
 
@@ -61,4 +64,3 @@ This document defines practical coding conventions for this codebase.
 - Add comments for non-obvious decisions and invariants.
 - Avoid comments that restate trivial syntax.
 - Prefer concise comments that explain *why*, not just *what*.
-
