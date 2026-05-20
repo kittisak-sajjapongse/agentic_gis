@@ -58,6 +58,10 @@ Before submitting changes:
 2. Quality
 - Run compile check:
   - `python -m py_compile $(rg --files -g '*.py')`
+- Run tests with pytest at least once before considering a work item complete / PR merge-ready:
+  - `python3 -m pytest -q`
+- If a change impacts user workflow (UI/API/agent interaction flow), add or
+  update at least one `test_workflow_*.py` coverage path for that change.
 - If behavior changed, run the relevant runtime path (CLI).
 
 3. Contract Safety
