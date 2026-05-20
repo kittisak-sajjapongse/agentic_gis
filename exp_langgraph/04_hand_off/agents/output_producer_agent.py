@@ -2,7 +2,7 @@ import json
 from typing import List
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
 
 from AgentBase import AgentBase
@@ -43,6 +43,7 @@ class OpManager(AgentBase[IAgentState]):
             - You may ask multiple questions in one response
             - For every Docker MCP tool call, always pass:
               host_mount_dir="/Users/kittisak/data/work/agentic_gis/exp_langgraph/04_hand_off/data"
+            - Any output layers created should be saved to `/data/output/`
             - For timeout handling: first call run_python without timeout_s (use tool default). Increase timeout_s only if execution times out.
             - If "code" is non-empty, you MUST call Docker MCP tool(s) to execute that code before returning final JSON.
             - Do not return final JSON with non-empty "code" until at least one tool execution result is observed.
@@ -103,10 +104,26 @@ class OpManager(AgentBase[IAgentState]):
             raise ValueError("LLM returned empty content without tool_calls")
 
         resp_js = parse_llm_json_object(content)
+        code = resp_js.get("code")
+        requires_tool_call = (
+            isinstance(code, str)
+            and code.strip() != ""
+            and not self._has_tool_result_since_last_user(state)
+        )
         return {
             "clarification_question": resp_js.get("clarification_question"),
             "decline_message": resp_js.get("decline_message"),
-            "code": resp_js.get("code"),
+            "code": code,
             "outputs": resp_js.get("outputs"),
+            "op_requires_tool_call": requires_tool_call,
             "_messages": [response],
         }
+
+    def _has_tool_result_since_last_user(self, state: IAgentState) -> bool:
+        """Return True if a ToolMessage exists after the most recent user input."""
+        for msg in reversed(state.get("_messages", [])):
+            if isinstance(msg, ToolMessage):
+                return True
+            if isinstance(msg, HumanMessage):
+                return False
+        return False

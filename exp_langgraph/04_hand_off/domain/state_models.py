@@ -45,6 +45,8 @@ class OpState(IAgentState):
     decline_message: Optional[str]
     outputs: Optional[List[OpOutput]]
     code: Optional[str]
+    # Guardrail flag: OP returned code without observed tool execution.
+    op_requires_tool_call: Optional[bool]
 
 
 class SessionModel(BaseModel):
