@@ -94,6 +94,8 @@ def create_app() -> FastAPI:
 
     @app.get("/api/catalog")
     async def list_catalog() -> dict[str, list[dict]]:
+        # User workflow (step 1): UI calls this to show globally available
+        # datasets in the catalog browser. Items are not yet in a session/map.
         items: list[dict] = []
         for catalog_id, item in catalog_index.items():
             items.append(
@@ -117,6 +119,10 @@ def create_app() -> FastAPI:
     async def import_catalog_layer(
         session_id: str, payload: CatalogImportRequest
     ) -> dict:
+        # User workflow (step 2): when user clicks "Import" in UI, this endpoint
+        # materializes the selected catalog dataset as a session layer record.
+        # After success, UI reloads GET /api/sessions/{session_id}/layers and the
+        # imported layer becomes available in the layer panel/map.
         session = session_service.get_session(session_id)
         if session is None:
             raise HTTPException(status_code=404, detail="Session not found")
@@ -149,6 +155,8 @@ def create_app() -> FastAPI:
             )
             source_artifact_id = artifact.artifact_id
         elif catalog_type == "GEOPARQUET" or suffix == ".parquet":
+            # Import workflow detail: keep original parquet artifact and expose
+            # a converted GeoJSON artifact as the map source for MapLibre POC.
             artifact_provider.register_artifact(
                 path=str(resolved), content_type="application/vnd.apache.parquet"
             )
