@@ -10,15 +10,7 @@ Covers:
 
 from __future__ import annotations
 
-from pathlib import Path
-import sys
-
 from fastapi.testclient import TestClient
-
-# Allow direct execution: `python3 tests/test_workflow_*.py`
-REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
 
 from api.app import create_app
 from domain.gis_catalog import GIS_COLLECTION
@@ -31,7 +23,7 @@ def _extract_artifact_id_from_source_url(url: str) -> str:
     return parts[2]
 
 
-def main() -> None:
+def test_workflow_catalog_import_api() -> None:
     app = create_app()
     client = TestClient(app)
 
@@ -75,13 +67,4 @@ def main() -> None:
     assert artifact_resp.status_code == 200, artifact_resp.text
     assert len(artifact_resp.content) > 0
 
-    print(
-        "PASS: catalog import API flow works",
-        f"session_id={session_id}",
-        f"catalog_item_id={catalog_item_id}",
-        f"layer_id={imported_layer['id']}",
-    )
-
-
-if __name__ == "__main__":
-    main()
+    assert imported_layer["id"].startswith("lyr_in_")

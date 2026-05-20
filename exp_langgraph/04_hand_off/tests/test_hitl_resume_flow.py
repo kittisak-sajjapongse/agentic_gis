@@ -10,12 +10,6 @@ Scope:
 """
 
 import asyncio
-from pathlib import Path
-import sys
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
 import api.run_service as run_service_module
 from api.run_service import RunService
@@ -76,7 +70,7 @@ async def _collect_until_terminal(rs: RunService, run_id: str) -> list[str]:
     return event_types
 
 
-async def _run_test() -> None:
+async def _run_test_impl() -> None:
     original_builder = run_service_module.build_main_graph
     run_service_module.build_main_graph = _fake_build_main_graph
 
@@ -118,5 +112,5 @@ async def _run_test() -> None:
         run_service_module.build_main_graph = original_builder
 
 
-if __name__ == "__main__":
-    asyncio.run(_run_test())
+def test_hitl_resume_flow() -> None:
+    asyncio.run(_run_test_impl())
