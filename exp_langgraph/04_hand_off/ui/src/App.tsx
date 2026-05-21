@@ -584,6 +584,39 @@ export function App() {
     }
   }
 
+  async function createNewSessionFromUi() {
+    setLayerError(null);
+    try {
+      const response = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      if (!response.ok) {
+        throw new Error(`Unable to create session: HTTP ${response.status}`);
+      }
+      const payload = (await response.json()) as { sessionId: string };
+      const nextSessionId = payload.sessionId;
+      window.sessionStorage.setItem(SESSION_STORAGE_KEY, nextSessionId);
+      eventSourceRef.current?.close();
+      eventSourceRef.current = null;
+      setPendingClarification(null);
+      setChatBusy(false);
+      setChatMessages([
+        {
+          id: crypto.randomUUID(),
+          role: 'system',
+          text: `Created new session: ${nextSessionId}`,
+        },
+      ]);
+      setSessionId(nextSessionId);
+      await reloadLayers(nextSessionId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown new session error';
+      setLayerError(message);
+    }
+  }
+
   return (
     <div className="app">
       <header className="topbar">
@@ -597,6 +630,9 @@ export function App() {
             />
             <button type="submit" disabled={!sessionInput.trim() || chatBusy}>
               Continue
+            </button>
+            <button type="button" onClick={() => void createNewSessionFromUi()} disabled={chatBusy}>
+              New Session
             </button>
           </form>
           <HealthBadge />
