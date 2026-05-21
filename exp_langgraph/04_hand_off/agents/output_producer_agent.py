@@ -44,6 +44,9 @@ class OpManager(AgentBase[IAgentState]):
             - You may ask multiple questions in one response
             - For every Docker MCP tool call, always pass:
               host_mount_dir="/Users/kittisak/data/work/agentic_gis/exp_langgraph/04_hand_off/data"
+            - MCP base image already includes `pyarrow`, `geopandas`, and `shapely`.
+              Do NOT include these in tool-call `requirements` unless a specific
+              non-default version is explicitly required.
             - Any output layers created should be saved to `/data/output/`
             - For timeout handling: first call run_python without timeout_s (use tool default). Increase timeout_s only if execution times out.
             - If "code" is non-empty, you MUST call Docker MCP tool(s) to execute that code before returning final JSON.

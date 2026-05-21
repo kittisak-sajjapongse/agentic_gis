@@ -12,13 +12,26 @@ MCP_NAME = "docker-python"
 MCP_HOST = os.getenv("MCP_HOST", "127.0.0.1")
 MCP_PORT = int(os.getenv("MCP_PORT", "8000"))
 MCP_MOUNT_PATH = os.getenv("MCP_MOUNT_PATH")
-DEFAULT_IMAGE = os.getenv("MCP_DOCKER_IMAGE", "python:3.11-slim")
+DEFAULT_IMAGE = os.getenv("MCP_DOCKER_IMAGE", "agentic-gis-mcp-python:latest")
 HOST_MOUNT_DIR = os.getenv(
     "MCP_DOCKER_HOST_DIR",
     os.path.join(os.getcwd(), "exp", "02_programming_agent_mcp", "runs"),
 )
 DEFAULT_TIMEOUT_S = int(os.getenv("MCP_DOCKER_TIMEOUT_S", "60"))
 CONTAINER_MOUNT_DIR = "/data"
+BASE_GEOSPATIAL_REQUIREMENTS = {"pyarrow", "geopandas", "shapely"}
+
+
+def _requirement_name(requirement: str) -> str:
+    # Extract canonical package name from simple requirement specifiers such as:
+    # geopandas, geopandas==1.0.0, geopandas>=0.14, geopandas[all]==...
+    name = requirement.strip().lower()
+    for token in ("[", "=", "<", ">", "!", "~"):
+        idx = name.find(token)
+        if idx >= 0:
+            name = name[:idx]
+            break
+    return name
 
 os.makedirs(HOST_MOUNT_DIR, exist_ok=True)
 
@@ -42,9 +55,19 @@ def _build_docker_command(
     script_path: str,
     requirements: Optional[List[str]],
 ) -> List[str]:
-    pip_cmd = ""
+    filtered_requirements = None
     if requirements:
-        reqs = " ".join(requirements)
+        # Base image already includes core geospatial deps; avoid reinstalling
+        # them on every run if agent still sends legacy requirements.
+        filtered_requirements = [
+            req
+            for req in requirements
+            if _requirement_name(req) not in BASE_GEOSPATIAL_REQUIREMENTS
+        ]
+
+    pip_cmd = ""
+    if filtered_requirements:
+        reqs = " ".join(filtered_requirements)
         pip_cmd = f"python -m pip install -q --no-cache-dir {reqs} && "
     run_cmd = f"{pip_cmd}python {script_path}"
     return [
