@@ -21,6 +21,7 @@ class OpManager(AgentBase[IAgentState]):
     ):
         super().__init__(llm, name)
         self._tools = tools
+        self._tool_names = {tool.name for tool in tools}
         self._system_prompt = SystemMessage(
             content="""
             You are a Geographic Information System (GIS) specialist with expertise in Python.
@@ -120,9 +121,14 @@ class OpManager(AgentBase[IAgentState]):
         }
 
     def _has_tool_result_since_last_user(self, state: IAgentState) -> bool:
-        """Return True if a ToolMessage exists after the most recent user input."""
+        """Return True if an OP-phase tool result exists since latest user input.
+
+        Important: IR graph may also emit ToolMessage instances (for catalog
+        search). We must only count tool messages produced by this manager's
+        MCP tool set; otherwise code can be finalized without OP execution.
+        """
         for msg in reversed(state.get("_messages", [])):
-            if isinstance(msg, ToolMessage):
+            if isinstance(msg, ToolMessage) and getattr(msg, "name", None) in self._tool_names:
                 return True
             if isinstance(msg, HumanMessage):
                 return False

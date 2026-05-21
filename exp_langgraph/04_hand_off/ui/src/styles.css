@@ -33,6 +33,46 @@ body {
   font-size: 18px;
 }
 
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.session-switch-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.session-switch-form input {
+  width: 280px;
+  max-width: 38vw;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.session-switch-form input::placeholder {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.session-switch-form button {
+  padding: 6px 10px;
+  border: 1px solid #fff;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.session-switch-form button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 .health {
   font-size: 13px;
   padding: 6px 10px;
@@ -168,6 +208,22 @@ body {
 }
 
 @media (max-width: 1024px) {
+  .topbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .topbar-right {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .session-switch-form input {
+    width: min(100%, 420px);
+    max-width: none;
+  }
+
   .layout {
     grid-template-columns: 1fr;
   }
