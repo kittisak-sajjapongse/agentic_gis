@@ -30,7 +30,7 @@ Scope is proof-of-concept only.
 | [BACKEND-007](#BACKEND-007) | - | DONE | Codex | 2026-05-20 |
 | [QA-005](#QA-005) | - | DONE | Codex | 2026-05-20 |
 | [BACKEND-008](#BACKEND-008) | - | DONE | Codex | 2026-05-20 |
-| [MCP-001](#MCP-001) | - | TODO | Unassigned | - |
+| [MCP-001](#MCP-001) | - | DONE | Codex | 2026-05-20 |
 | [BACKEND-010](#BACKEND-010) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
 | [AGENT-003](#AGENT-003) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
 | [BACKEND-011](#BACKEND-011) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
@@ -623,7 +623,7 @@ Scope is proof-of-concept only.
 
 <a id="MCP-001"></a>
 
-## MCP-001 [TODO] - Prebuild Python MCP image with geospatial base dependencies (immediate)
+## MCP-001 [DONE] - Prebuild Python MCP image with geospatial base dependencies (immediate)
 **Component:** MCP
 
 **Goal**
