@@ -30,6 +30,7 @@ Scope is proof-of-concept only.
 | [BACKEND-007](#BACKEND-007) | - | DONE | Codex | 2026-05-20 |
 | [QA-005](#QA-005) | - | DONE | Codex | 2026-05-20 |
 | [BACKEND-008](#BACKEND-008) | - | DONE | Codex | 2026-05-20 |
+| [MCP-001](#MCP-001) | - | TODO | Unassigned | - |
 | [BACKEND-010](#BACKEND-010) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
 | [AGENT-003](#AGENT-003) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
 | [BACKEND-011](#BACKEND-011) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
@@ -617,6 +618,40 @@ Scope is proof-of-concept only.
 1. Create session and run that generates output layer.
 2. Restart backend.
 3. Fetch session/layers again and confirm data remains.
+
+---
+
+<a id="MCP-001"></a>
+
+## MCP-001 [TODO] - Prebuild Python MCP image with geospatial base dependencies (immediate)
+**Component:** MCP
+
+**Goal**
+- Remove repetitive per-run dependency installation by providing a Docker base
+  image for MCP Python execution that already includes `pyarrow`, `geopandas`,
+  and `shapely`.
+
+**Deliverables**
+- Build and publish (or local-build/tag for POC) a Python image containing:
+  - `pyarrow`
+  - `geopandas`
+  - `shapely`
+- Update MCP server/tool runtime so `run_python` containers use this image by default.
+- Update agent instructions/prompts to stop specifying these three dependencies
+  in tool-call `requirements` unless an exceptional version override is needed.
+
+**Acceptance Criteria**
+- MCP `run_python` calls that import `pyarrow`, `geopandas`, and `shapely`
+  succeed without passing them in `requirements`.
+- Existing workflows continue to run without regression.
+- Agent prompt/tool guidance no longer asks for these dependencies on every run.
+
+**Verification**
+1. Build and configure the new MCP execution image.
+2. Run a workflow test that imports `geopandas`, `shapely`, and `pyarrow`
+   without passing `requirements`.
+3. Confirm container startup no longer installs those dependencies at runtime.
+4. Confirm at least one agent-generated layer workflow passes end-to-end.
 
 ---
 
