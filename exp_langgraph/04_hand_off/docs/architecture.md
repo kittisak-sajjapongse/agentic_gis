@@ -117,8 +117,8 @@ so restart does not lose active session metadata and layer/run registries.
 Key points:
 1. API code depends on `PersistenceStore` interface (not concrete backend type).
 2. Current implementation is `JsonPersistenceStore` (file-backed snapshot).
-3. Backend is selected by config (`POC_PERSISTENCE_BACKEND`, currently `json`).
-4. Snapshot file path is configured by `POC_STATE_FILE`.
+3. Backend is selected by config (`PERSISTENCE_BACKEND`, currently `json`).
+4. Snapshot file path is configured by `STATE_FILE`.
 
 Current persisted state domains:
 1. `sessions`

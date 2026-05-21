@@ -16,7 +16,7 @@ from api.app import create_app
 
 def test_workflow_persistence_restart_state(monkeypatch, tmp_path) -> None:
     state_file = tmp_path / "poc_state.json"
-    monkeypatch.setenv("POC_STATE_FILE", str(state_file))
+    monkeypatch.setenv("STATE_FILE", str(state_file))
 
     # First backend lifecycle: create session and import one layer.
     app1 = create_app()
@@ -39,4 +39,3 @@ def test_workflow_persistence_restart_state(monkeypatch, tmp_path) -> None:
     assert listed.status_code == 200, listed.text
     layers = listed.json()["layers"]
     assert any(layer["id"] == imported_layer_id for layer in layers)
-

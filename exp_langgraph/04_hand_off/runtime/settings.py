@@ -29,8 +29,8 @@ class AppSettings:
                 "DOCKER_MCP_SERVER_NAME", cls.docker_mcp_server_name
             ),
             data_mount_dir=os.getenv("DATA_MOUNT_DIR", default_data_mount),
-            state_file=os.getenv("POC_STATE_FILE", default_state_file),
+            state_file=os.getenv("STATE_FILE", default_state_file),
             persistence_backend=os.getenv(
-                "POC_PERSISTENCE_BACKEND", cls.persistence_backend
+                "PERSISTENCE_BACKEND", cls.persistence_backend
             ),
         )

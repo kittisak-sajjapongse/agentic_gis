@@ -77,6 +77,6 @@ def build_persistence_store(
     if resolved == PersistenceBackend.SQLITE:
         raise NotImplementedError(
             "SQLite persistence backend is not implemented yet. "
-            "Set POC_PERSISTENCE_BACKEND=json for now."
+            "Set PERSISTENCE_BACKEND=json for now."
         )
     raise ValueError(f"Unsupported persistence backend: {backend!r}")
