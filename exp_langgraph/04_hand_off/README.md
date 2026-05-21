@@ -103,6 +103,11 @@ python main_api.py
 python mcp_server.py
 ```
 
+### Build MCP base image (recommended for faster runs)
+```bash
+scripts/build_mcp_base_image.sh
+```
+
 ## Environment
 
 Common env vars used by this example:
@@ -112,6 +117,7 @@ Common env vars used by this example:
 - `MCP_SERVER_URL` (optional)
 - `DOCKER_MCP_SERVER_NAME` (optional)
 - `DATA_MOUNT_DIR` (optional)
+- `MCP_DOCKER_IMAGE` (optional, default `agentic-gis-mcp-python:latest`)
 
 ## Extension Guide
 
