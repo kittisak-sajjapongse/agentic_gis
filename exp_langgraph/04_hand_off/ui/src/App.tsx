@@ -138,6 +138,7 @@ export function App() {
   const [chatInput, setChatInput] = useState<string>('');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatBusy, setChatBusy] = useState<boolean>(false);
+  const [sessionInput, setSessionInput] = useState<string>('');
   const [pendingClarification, setPendingClarification] = useState<PendingClarification | null>(
     null
   );
@@ -552,11 +553,54 @@ export function App() {
     }
   }
 
+  async function continueSession(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const nextSessionId = sessionInput.trim();
+    if (!nextSessionId) return;
+    setLayerError(null);
+    try {
+      const response = await fetch(`/api/sessions/${nextSessionId}`);
+      if (!response.ok) {
+        throw new Error(`Session not found: HTTP ${response.status}`);
+      }
+      window.sessionStorage.setItem(SESSION_STORAGE_KEY, nextSessionId);
+      eventSourceRef.current?.close();
+      eventSourceRef.current = null;
+      setPendingClarification(null);
+      setChatBusy(false);
+      setChatMessages([
+        {
+          id: crypto.randomUUID(),
+          role: 'system',
+          text: `Switched to session: ${nextSessionId}`,
+        },
+      ]);
+      setSessionId(nextSessionId);
+      await reloadLayers(nextSessionId);
+      setSessionInput('');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown session switch error';
+      setLayerError(message);
+    }
+  }
+
   return (
     <div className="app">
       <header className="topbar">
         <h1>GIS Agent Workspace (POC)</h1>
-        <HealthBadge />
+        <div className="topbar-right">
+          <form className="session-switch-form" onSubmit={continueSession}>
+            <input
+              value={sessionInput}
+              onChange={(e) => setSessionInput(e.target.value)}
+              placeholder="Continue session ID..."
+            />
+            <button type="submit" disabled={!sessionInput.trim() || chatBusy}>
+              Continue
+            </button>
+          </form>
+          <HealthBadge />
+        </div>
       </header>
 
       <main className="layout">
