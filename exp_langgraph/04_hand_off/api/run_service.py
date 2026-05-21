@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import logging
 import traceback
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Callable, Optional
 from uuid import uuid4
 
 import geopandas as gpd
@@ -25,8 +25,23 @@ logger = logging.getLogger(__name__)
 
 
 class RunService:
-    def __init__(self, data_mount_dir: str | None = None) -> None:
-        self._runs: dict[str, RunModel] = {}
+    def __init__(
+        self,
+        data_mount_dir: str | None = None,
+        initial_runs: Optional[dict[str, RunModel]] = None,
+        on_change: Optional[Callable[[], None]] = None,
+    ) -> None:
+        """Initialize run orchestration service.
+
+        Args:
+            data_mount_dir: Host directory that corresponds to container `/data`
+                outputs. Used to resolve artifact paths emitted by agent tools.
+            initial_runs: Optional preloaded run-state snapshot for startup
+                restore (POC persistence).
+            on_change: Optional callback fired when run records mutate, allowing
+                app-level persistence writers to flush updated state.
+        """
+        self._runs: dict[str, RunModel] = initial_runs or {}
         self._subscribers: dict[str, list[asyncio.Queue[dict[str, Any]]]] = {}
         # POC in-memory execution context store for resume support.
         self._graphs: dict[str, Any] = {}
@@ -34,6 +49,7 @@ class RunService:
         self._data_mount_dir = (
             Path(data_mount_dir) if data_mount_dir else (Path.cwd() / "data")
         )
+        self._on_change = on_change
 
     def _now_iso(self) -> str:
         return datetime.now(timezone.utc).isoformat()
@@ -46,6 +62,7 @@ class RunService:
             startedAt=self._now_iso(),
         )
         self._runs[run.runId] = run
+        self._notify_changed()
         return run
 
     def get_run(self, run_id: str) -> RunModel | None:
@@ -57,6 +74,7 @@ class RunService:
             return None
         updated = run.model_copy(update=updates)
         self._runs[run_id] = updated
+        self._notify_changed()
         return updated
 
     def _emit_event(self, run_id: str, event_type: str, payload: dict[str, Any]) -> None:
@@ -655,3 +673,15 @@ class RunService:
                 "Start a new run (POC limitation: in-memory graph context)."
             )
         return run, graph, config
+
+    def dump_state(self) -> dict[str, dict]:
+        """Return JSON-serializable snapshot of run metadata state.
+
+        Includes terminal/interrupted status fields used for restart-safe run
+        inspection APIs (but not in-memory active graph execution objects).
+        """
+        return {rid: run.model_dump() for rid, run in self._runs.items()}
+
+    def _notify_changed(self) -> None:
+        if self._on_change is not None:
+            self._on_change()

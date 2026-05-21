@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import BinaryIO, Optional
+from typing import BinaryIO, Callable, Optional
 from uuid import uuid4
 
 
@@ -54,8 +54,21 @@ class LocalArtifactProvider(ArtifactProvider):
     - Map rendering may still require transformation (e.g., tiles/GeoJSON),
       but those derived outputs should also be registered as artifacts.
     """
-    def __init__(self) -> None:
-        self._artifacts: dict[str, ArtifactMetadata] = {}
+    def __init__(
+        self,
+        initial_artifacts: Optional[dict[str, ArtifactMetadata]] = None,
+        on_change: Optional[Callable[[], None]] = None,
+    ) -> None:
+        """Initialize local artifact registry.
+
+        Args:
+            initial_artifacts: Optional preloaded artifact metadata map for
+                startup restore from persistence.
+            on_change: Optional callback fired when artifact metadata changes,
+                so app-level persistence can flush updated state.
+        """
+        self._artifacts: dict[str, ArtifactMetadata] = initial_artifacts or {}
+        self._on_change = on_change
 
     def register_artifact(
         self, path: str, content_type: Optional[str] = None
@@ -75,6 +88,7 @@ class LocalArtifactProvider(ArtifactProvider):
             size_bytes=file_path.stat().st_size,
         )
         self._artifacts[artifact_id] = metadata
+        self._notify_changed()
         return metadata
 
     def get_metadata(self, artifact_id: str) -> Optional[ArtifactMetadata]:
@@ -87,3 +101,23 @@ class LocalArtifactProvider(ArtifactProvider):
         if metadata is None:
             raise KeyError(f"Unknown artifact id: {artifact_id}")
         return open(metadata.path, "rb")
+
+    def dump_state(self) -> dict[str, dict]:
+        """Return JSON-serializable snapshot of artifact metadata index.
+
+        Persisted artifact entries allow API restart without losing
+        `artifact_id -> file path/content-type` resolution.
+        """
+        return {
+            artifact_id: {
+                "artifact_id": meta.artifact_id,
+                "path": meta.path,
+                "content_type": meta.content_type,
+                "size_bytes": meta.size_bytes,
+            }
+            for artifact_id, meta in self._artifacts.items()
+        }
+
+    def _notify_changed(self) -> None:
+        if self._on_change is not None:
+            self._on_change()

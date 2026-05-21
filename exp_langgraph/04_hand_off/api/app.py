@@ -10,6 +10,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 import geopandas as gpd
 
+from .persistence_store import PersistenceStore, build_persistence_store
 from .layer_service import LayerService
 from .run_service import RunService
 from .session_service import SessionService
@@ -21,19 +22,72 @@ from domain.state_models import (
     LayerPatchRequest,
     LayerSource,
     LayerStyle,
+    RunModel,
     ResumeRunRequest,
+    SessionModel,
 )
 from runtime.settings import AppSettings
 from tools import LocalArtifactProvider
+from tools.artifact_provider import ArtifactMetadata
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title="04_hand_off API", version="0.1.0")
     settings = AppSettings.from_env()
-    session_service = SessionService()
-    layer_service = LayerService()
-    run_service = RunService(data_mount_dir=settings.data_mount_dir)
-    artifact_provider = LocalArtifactProvider()
+    persistence: PersistenceStore = build_persistence_store(
+        backend=settings.persistence_backend,
+        source=settings.state_file,
+    )
+    persisted = persistence.load()
+
+    session_models = {
+        sid: SessionModel.model_validate(payload)
+        for sid, payload in persisted.get("sessions", {}).items()
+    }
+    layer_models = {
+        sid: [LayerDescriptor.model_validate(item) for item in items]
+        for sid, items in persisted.get("layers_by_session", {}).items()
+    }
+    run_models = {
+        rid: RunModel.model_validate(payload)
+        for rid, payload in persisted.get("runs", {}).items()
+    }
+    artifact_models = {
+        aid: ArtifactMetadata(**payload)
+        for aid, payload in persisted.get("artifacts", {}).items()
+    }
+
+    session_service: SessionService
+    layer_service: LayerService
+    run_service: RunService
+    artifact_provider: LocalArtifactProvider
+
+    def persist_all() -> None:
+        persistence.save(
+            {
+                "sessions": session_service.dump_state(),
+                "layers_by_session": layer_service.dump_state(),
+                "runs": run_service.dump_state(),
+                "artifacts": artifact_provider.dump_state(),
+            }
+        )
+
+    session_service = SessionService(initial_sessions=session_models, on_change=persist_all)
+    layer_service = LayerService(
+        initial_layers_by_session=layer_models,
+        on_change=persist_all,
+    )
+    run_service = RunService(
+        data_mount_dir=settings.data_mount_dir,
+        initial_runs=run_models,
+        on_change=persist_all,
+    )
+    artifact_provider = LocalArtifactProvider(
+        initial_artifacts=artifact_models,
+        on_change=persist_all,
+    )
+    # Ensure state file exists even before first mutation.
+    persist_all()
     app.state.layer_service = layer_service
     app.state.run_service = run_service
     app.state.artifact_provider = artifact_provider

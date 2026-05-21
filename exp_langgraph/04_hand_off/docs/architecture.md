@@ -109,6 +109,49 @@ Channel legend:
 
 The UI is added as a separate subdirectory (`ui/`) to keep backend architecture intact.
 
+### 1.4 Persistent State Storage (POC)
+
+The backend now includes a small persistence abstraction for application state
+so restart does not lose active session metadata and layer/run registries.
+
+Key points:
+1. API code depends on `PersistenceStore` interface (not concrete backend type).
+2. Current implementation is `JsonPersistenceStore` (file-backed snapshot).
+3. Backend is selected by config (`POC_PERSISTENCE_BACKEND`, currently `json`).
+4. Snapshot file path is configured by `POC_STATE_FILE`.
+
+Current persisted state domains:
+1. `sessions`
+- `sessionId`, `status`, `createdAt`, `lastRunId`
+
+2. `runs`
+- `runId`, `sessionId`, `status`, `startedAt`, `finishedAt`
+- `error`, `declineMessage`
+- `pendingInterruptId`, `pendingQuestion`
+
+3. `layers_by_session`
+- Session-keyed list of `LayerDescriptor` records
+- Includes map-facing metadata:
+  - `id`, `name`, `kind`, `source`, `style`
+  - `visible`, `opacity`, `bounds`
+  - `origin`, `createdByRunId`, `createdAt`
+
+4. `artifacts`
+- `artifact_id`, absolute `path`, `content_type`, `size_bytes`
+- Used by `/api/artifacts/:id/content` for content streaming
+
+Not persisted:
+1. In-memory run execution objects (`_graphs`, `_configs`) used only for active
+   HITL resume in the current process.
+2. SSE subscriber queues/connections.
+
+Lifecycle:
+1. On startup: backend loads persisted snapshot and reconstructs service state.
+2. On mutation: services invoke `on_change` callback and persist a fresh
+   snapshot atomically.
+3. On restart: UI can continue from existing session/layer/run metadata using
+   normal APIs.
+
 ---
 
 ## 2) API Design
