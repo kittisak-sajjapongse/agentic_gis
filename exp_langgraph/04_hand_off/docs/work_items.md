@@ -28,7 +28,7 @@ Scope is proof-of-concept only.
 | [BACKEND-015](#BACKEND-015) | EPIC-RENDER-001 | DONE | Codex | 2026-05-18 |
 | [QA-004](#QA-004) | EPIC-RENDER-001 | DONE | Codex | 2026-05-18 |
 | [BACKEND-007](#BACKEND-007) | - | DONE | Codex | 2026-05-20 |
-| [QA-005](#QA-005) | - | TODO | Unassigned | - |
+| [QA-005](#QA-005) | - | DONE | Codex | 2026-05-20 |
 | [BACKEND-008](#BACKEND-008) | - | TODO | Unassigned | - |
 | [BACKEND-010](#BACKEND-010) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
 | [AGENT-003](#AGENT-003) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
@@ -573,7 +573,7 @@ Scope is proof-of-concept only.
 
 <a id="BACKEND-008"></a>
 
-## QA-005 [TODO] - Migrate existing tests to pytest (immediate)
+## QA-005 [DONE] - Migrate existing tests to pytest (immediate)
 **Component:** QA
 
 **Goal**
