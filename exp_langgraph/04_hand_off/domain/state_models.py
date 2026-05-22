@@ -89,6 +89,8 @@ class LayerDescriptor(BaseModel):
     opacity: Optional[float] = None
     bounds: Optional[List[float]] = None
     origin: Literal["input", "agent_output"]
+    # Optional source catalog identity when layer originates from global catalog.
+    catalogItemId: Optional[str] = None
     createdByRunId: Optional[str] = None
     createdAt: str
 
@@ -113,6 +115,13 @@ class CatalogImportRequest(BaseModel):
     catalogItemId: str
     # Optional display name override for the imported layer.
     name: Optional[str] = None
+
+
+class ShowLayerRequest(BaseModel):
+    # Request body for POST /api/sessions/{session_id}/layers/show
+    # Exactly one of catalogItemId or layerId should be provided.
+    catalogItemId: Optional[str] = None
+    layerId: Optional[str] = None
 
 
 class ResumeRunRequest(BaseModel):

@@ -3,28 +3,25 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 import json
-from pathlib import Path
 from typing import BinaryIO
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
-import geopandas as gpd
 
 from .persistence_store import PersistenceStore, build_persistence_store
 from .layer_service import LayerService
+from .layer_show_service import LayerShowService
 from .run_service import RunService
 from .session_service import SessionService
 from domain.gis_catalog import GIS_COLLECTION
 from domain.state_models import (
     CatalogImportRequest,
     ChatRequest,
-    LayerDescriptor,
     LayerPatchRequest,
-    LayerSource,
-    LayerStyle,
     RunModel,
     ResumeRunRequest,
     SessionModel,
+    ShowLayerRequest,
 )
 from runtime.settings import AppSettings
 from tools import LocalArtifactProvider
@@ -94,20 +91,12 @@ def create_app() -> FastAPI:
     catalog_index = {
         f"cat_{idx:03d}": item for idx, item in enumerate(GIS_COLLECTION, start=1)
     }
-
-    def resolve_data_path(raw_path: str) -> Path:
-        candidate = Path(raw_path)
-        if candidate.exists():
-            return candidate
-        if raw_path.startswith("/data/"):
-            return Path(settings.data_mount_dir) / raw_path.removeprefix("/data/")
-        return candidate
-
-    def convert_parquet_to_geojson(parquet_path: Path) -> Path:
-        gdf = gpd.read_parquet(parquet_path)
-        output_path = parquet_path.with_name(f"{parquet_path.stem}.catalog.geojson")
-        output_path.write_text(gdf.to_json(default=str), encoding="utf-8")
-        return output_path
+    layer_show_service = LayerShowService(
+        layer_service=layer_service,
+        artifact_provider=artifact_provider,
+        catalog_index=catalog_index,
+        data_mount_dir=settings.data_mount_dir,
+    )
 
     @app.get("/api/health")
     async def health() -> dict[str, str]:
@@ -181,70 +170,35 @@ def create_app() -> FastAPI:
         if session is None:
             raise HTTPException(status_code=404, detail="Session not found")
 
-        catalog_item = catalog_index.get(payload.catalogItemId)
-        if catalog_item is None:
-            raise HTTPException(status_code=404, detail="Catalog item not found")
+        try:
+            layer = layer_show_service.show_layer(
+                session_id=session_id,
+                catalog_item_id=payload.catalogItemId,
+            )
+            return layer.model_dump()
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-        raw_file = str(catalog_item.get("file", ""))
-        resolved = resolve_data_path(raw_file)
-        if not resolved.exists() or not resolved.is_file():
-            raise HTTPException(
-                status_code=404,
-                detail=f"Catalog file not found on backend host: {resolved}",
+    @app.post("/api/sessions/{session_id}/layers/show")
+    async def show_layer(session_id: str, payload: ShowLayerRequest) -> dict:
+        session = session_service.get_session(session_id)
+        if session is None:
+            raise HTTPException(status_code=404, detail="Session not found")
+        try:
+            layer = layer_show_service.show_layer(
+                session_id=session_id,
+                catalog_item_id=payload.catalogItemId,
+                layer_id=payload.layerId,
             )
-
-        source_artifact_id: str
-        kind = "geojson"
-        source_type = "geojson"
-        style = LayerStyle(preset="line-default")
-        suffix = resolved.suffix.lower()
-        catalog_type = str(catalog_item.get("type", "")).upper()
-
-        if catalog_type == "GEOTIFF" or suffix in {".tif", ".tiff"}:
-            kind = "raster"
-            source_type = "raster"
-            style = LayerStyle(preset="raster-default")
-            artifact = artifact_provider.register_artifact(
-                path=str(resolved), content_type="image/tiff"
-            )
-            source_artifact_id = artifact.artifact_id
-        elif catalog_type == "GEOPARQUET" or suffix == ".parquet":
-            # Import workflow detail: keep original parquet artifact and expose
-            # a converted GeoJSON artifact as the map source for MapLibre POC.
-            artifact_provider.register_artifact(
-                path=str(resolved), content_type="application/vnd.apache.parquet"
-            )
-            geojson_path = convert_parquet_to_geojson(resolved)
-            converted = artifact_provider.register_artifact(
-                path=str(geojson_path), content_type="application/geo+json"
-            )
-            source_artifact_id = converted.artifact_id
-        elif suffix == ".geojson":
-            artifact = artifact_provider.register_artifact(
-                path=str(resolved), content_type="application/geo+json"
-            )
-            source_artifact_id = artifact.artifact_id
-        else:
-            artifact = artifact_provider.register_artifact(
-                path=str(resolved), content_type="application/octet-stream"
-            )
-            source_artifact_id = artifact.artifact_id
-
-        layer = LayerDescriptor(
-            id=layer_service.create_layer_id(prefix="lyr_in"),
-            name=payload.name or str(catalog_item.get("description", payload.catalogItemId)),
-            kind=kind,  # type: ignore[arg-type]
-            source=LayerSource(
-                type=source_type,
-                url=f"/api/artifacts/{source_artifact_id}/content",
-            ),
-            style=style,
-            visible=True,
-            origin="input",
-            createdAt=layer_service.now_iso(),
-        )
-        layer_service.add_layer(session_id, layer)
-        return layer.model_dump()
+            return layer.model_dump()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     @app.get("/api/layers/{layer_id}")
     async def get_layer(layer_id: str) -> dict:

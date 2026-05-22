@@ -31,7 +31,7 @@ Scope is proof-of-concept only.
 | [QA-005](#QA-005) | - | DONE | Codex | 2026-05-20 |
 | [BACKEND-008](#BACKEND-008) | - | DONE | Codex | 2026-05-20 |
 | [MCP-001](#MCP-001) | - | DONE | Codex | 2026-05-20 |
-| [BACKEND-010](#BACKEND-010) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
+| [BACKEND-010](#BACKEND-010) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-22 |
 | [AGENT-003](#AGENT-003) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
 | [BACKEND-011](#BACKEND-011) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
 | [UI-006](#UI-006) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
@@ -669,7 +669,7 @@ Scope is proof-of-concept only.
 
 <a id="BACKEND-010"></a>
 
-## BACKEND-010 [TODO] - Implement `show_layer(...)` service capability (+ production endpoint)
+## BACKEND-010 [DONE] - Implement `show_layer(...)` service capability (+ production endpoint)
 **Component:** BACKEND
 **EPIC:** `EPIC-LAYERSHOW-001`
 
