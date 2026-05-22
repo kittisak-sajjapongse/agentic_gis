@@ -17,6 +17,7 @@ from domain.gis_catalog import GIS_COLLECTION
 from domain.state_models import (
     CatalogImportRequest,
     ChatRequest,
+    LayerDescriptor,
     LayerPatchRequest,
     RunModel,
     ResumeRunRequest,
