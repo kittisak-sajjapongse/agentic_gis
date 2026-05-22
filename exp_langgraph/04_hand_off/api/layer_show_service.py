@@ -32,6 +32,14 @@ class LayerShowService:
         catalog_item_id: str | None = None,
         layer_id: str | None = None,
     ) -> LayerDescriptor:
+        """Resolve and show one layer in a session by catalog id or layer id.
+
+        High-level behavior:
+        - Validate exactly one selector is provided.
+        - If `layer_id` is provided, show an existing session layer.
+        - If `catalog_item_id` is provided, resolve/import the catalog layer
+          into the session (if needed) and ensure it is visible.
+        """
         if (catalog_item_id is None) == (layer_id is None):
             raise ValueError("Provide exactly one of catalogItemId or layerId")
 
@@ -40,6 +48,13 @@ class LayerShowService:
         return self._show_catalog_item(session_id, catalog_item_id or "")
 
     def _show_existing_session_layer(self, session_id: str, layer_id: str) -> LayerDescriptor:
+        """Show an existing layer that already belongs to the target session.
+
+        High-level behavior:
+        - Validate the layer exists globally and is part of `session_id`.
+        - If already visible, return as-is.
+        - Otherwise set `visible=True` and return the updated descriptor.
+        """
         existing = self._layer_service.get_layer(layer_id)
         if existing is None:
             raise KeyError("Layer not found")
@@ -56,6 +71,14 @@ class LayerShowService:
         return updated
 
     def _show_catalog_item(self, session_id: str, catalog_item_id: str) -> LayerDescriptor:
+        """Show a catalog-defined layer in the target session.
+
+        High-level behavior:
+        - Validate catalog item exists.
+        - Reuse an existing session layer linked to the same catalog item when present.
+        - If not present, import/register artifacts and create a new visible
+          session layer bound to `catalog_item_id`.
+        """
         if catalog_item_id not in self._catalog_index:
             raise KeyError("Catalog item not found")
 
@@ -144,4 +167,3 @@ class LayerShowService:
         output_path = parquet_path.with_name(f"{parquet_path.stem}.catalog.geojson")
         output_path.write_text(gdf.to_json(default=str), encoding="utf-8")
         return output_path
-
