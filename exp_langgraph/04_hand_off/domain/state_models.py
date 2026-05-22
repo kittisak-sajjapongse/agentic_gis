@@ -45,7 +45,11 @@ class IrState(IAgentState):
 class OpState(IAgentState):
     clarification_question: Optional[str]
     decline_message: Optional[str]
+    # Output artifacts/files produced by OP execution planning/tooling
+    # (for example GEOPARQUET/GEOTIFF layers, reports, charts).
     outputs: Optional[List[OpOutput]]
+    # Structured backend action intents emitted by OP (for example show_layer),
+    # consumed by RunService to mutate session/map layer state.
     actions: Optional[List[Dict[str, Any]]]
     code: Optional[str]
     # Guardrail flag: OP returned code without observed tool execution.

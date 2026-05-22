@@ -43,7 +43,7 @@ def _builder_factory(values: dict):
     return _build
 
 
-class _StubLayerActionService:
+class _MockedLayerShowService:
     def __init__(self):
         self.calls: list[tuple[str, str | None, str | None]] = []
 
@@ -79,7 +79,7 @@ def test_workflow_agent_show_layer_action_valid() -> None:
         try:
             rs = RunService()
             run = rs.create_run("sess_action_ok")
-            action_service = _StubLayerActionService()
+            action_service = _MockedLayerShowService()
 
             events: list[str] = []
             async def _collect():
@@ -126,7 +126,7 @@ def test_workflow_agent_show_layer_action_invalid_payload_fails_cleanly() -> Non
         try:
             rs = RunService()
             run = rs.create_run("sess_action_bad")
-            action_service = _StubLayerActionService()
+            action_service = _MockedLayerShowService()
 
             events: list[str] = []
             async def _collect():
