@@ -31,6 +31,8 @@ class IAgentState(ObservableState):
     selected_layers: Optional[List[GISFile]]
     code: str
     outputs: Any
+    # Optional structured backend actions emitted by agent (e.g., show_layer).
+    actions: Any
 
 
 class IrState(IAgentState):
@@ -44,6 +46,7 @@ class OpState(IAgentState):
     clarification_question: Optional[str]
     decline_message: Optional[str]
     outputs: Optional[List[OpOutput]]
+    actions: Optional[List[Dict[str, Any]]]
     code: Optional[str]
     # Guardrail flag: OP returned code without observed tool execution.
     op_requires_tool_call: Optional[bool]

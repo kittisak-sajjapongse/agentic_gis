@@ -32,7 +32,7 @@ Scope is proof-of-concept only.
 | [BACKEND-008](#BACKEND-008) | - | DONE | Codex | 2026-05-20 |
 | [MCP-001](#MCP-001) | - | DONE | Codex | 2026-05-20 |
 | [BACKEND-010](#BACKEND-010) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-22 |
-| [AGENT-003](#AGENT-003) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
+| [AGENT-003](#AGENT-003) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-22 |
 | [BACKEND-011](#BACKEND-011) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
 | [UI-006](#UI-006) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
 | [QA-002](#QA-002) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
@@ -704,7 +704,7 @@ Scope is proof-of-concept only.
 
 <a id="AGENT-003"></a>
 
-## AGENT-003 [TODO] - Extend agent/run contract for show-layer actions
+## AGENT-003 [DONE] - Extend agent/run contract for show-layer actions
 **Component:** AGENT
 **EPIC:** `EPIC-LAYERSHOW-001`
 
