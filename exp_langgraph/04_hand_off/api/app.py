@@ -10,7 +10,7 @@ from fastapi.responses import StreamingResponse
 
 from .persistence_store import PersistenceStore, build_persistence_store
 from .layer_service import LayerService
-from .layer_show_service import LayerShowService
+from .layer_show_service import CatalogLayerImporter, LayerShowService
 from .run_service import RunService
 from .session_service import SessionService
 from domain.gis_catalog import GIS_COLLECTION
@@ -92,11 +92,15 @@ def create_app() -> FastAPI:
     catalog_index = {
         f"cat_{idx:03d}": item for idx, item in enumerate(GIS_COLLECTION, start=1)
     }
-    layer_show_service = LayerShowService(
+    layer_importer = CatalogLayerImporter(
         layer_service=layer_service,
         artifact_provider=artifact_provider,
         catalog_index=catalog_index,
         data_mount_dir=settings.data_mount_dir,
+    )
+    layer_show_service = LayerShowService(
+        layer_service=layer_service,
+        catalog_importer=layer_importer,
     )
 
     @app.get("/api/health")
