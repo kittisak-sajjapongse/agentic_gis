@@ -20,6 +20,18 @@ from api.run_service import RunService
 from tools.artifact_provider import LocalArtifactProvider
 
 
+class _SSEEventCollector(RunService):
+    """RunService test double that records emitted SSE event types."""
+
+    def __init__(self):
+        super().__init__()
+        self.emitted_types: list[str] = []
+
+    def _emit_event(self, run_id: str, event_type: str, payload: dict) -> None:
+        self.emitted_types.append(event_type)
+        super()._emit_event(run_id, event_type, payload)
+
+
 class _FakeInterrupt:
     def __init__(self, interrupt_id: str, value: dict):
         self.id = interrupt_id
@@ -87,7 +99,7 @@ def test_workflow_hitl_resume_end_to_end() -> None:
         original_builder = run_service_module.build_main_graph
         run_service_module.build_main_graph = _fake_builder_factory(str(output_file))
         try:
-            rs = RunService()
+            rs = _SSEEventCollector()
             ls = LayerService()
             ap = LocalArtifactProvider()
 
@@ -141,6 +153,9 @@ def test_workflow_hitl_resume_end_to_end() -> None:
             status2 = rs.get_run(run.runId)
             layers = ls.list_layers(session_id)
             assert status2 is not None and status2.status == "completed"
+            # Explicitly assert resume path emitted layer_created event from
+            # RunService internals, independent of subscriber timing.
+            assert "layer_created" in rs.emitted_types
             assert "done" in second_events
             assert len(layers) == 1
             assert layers[0].origin == "agent_output"

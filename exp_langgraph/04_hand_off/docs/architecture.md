@@ -183,6 +183,17 @@ Ownership boundary:
 - Layer registry/service owns map/business metadata.
 - Artifact provider owns storage lookup and content streaming.
 
+Design principle: separate presentation identity from storage identity.
+- `layerId` identifies a map-facing logical layer (style, visibility, origin, UX state).
+- `artifactId` identifies stored content bytes and storage metadata.
+- They are intentionally different IDs because they model different concerns.
+
+Why this separation matters:
+1. Backend can change storage implementation (local FS -> S3-like) without changing layer contracts.
+2. Multiple layers can reference the same artifact with different map styles/visibility.
+3. A layer can keep stable UI identity while its underlying artifact version/source changes.
+4. Layer APIs remain focused on map semantics; artifact APIs remain focused on byte serving.
+
 Request flow:
 1. UI gets layer descriptors from `layers` endpoints.
 2. UI reads `source.url` from each descriptor.
@@ -213,6 +224,14 @@ Production recommendation:
 - Expose `POST /api/sessions/:sessionId/layers/show` as an explicit command API
   backed by `show_layer(...)`.
 - Keep `GET /api/catalog` + `POST /layers/import` for manual discovery/import flows.
+
+Visibility source-of-truth rule:
+- Catalog is discovery-only (`GET /api/catalog`).
+- Map visibility state is session-layer state (backend-owned), not catalog state.
+- UI show/hide toggles should call backend (`PATCH /api/layers/:layerId`).
+- UI should react to `layer_updated` SSE and patch local map/layer state.
+- `POST /api/sessions/:sessionId/layers/show` is for explicit server-side
+  show command (agent-driven or API-driven), not required after every import.
 
 POC note:
 - The endpoint can be deferred while run orchestration calls `show_layer(...)`
@@ -269,7 +288,7 @@ POC note:
 | `GET` | `/api/artifacts/:artifactId/content` | Retrieve raw artifact data for map source | N/A | Content stream (GeoJSON/tiles/raster/etc.) |
 | `GET` | `/api/catalog` | Optional: list available local GIS datasets to add as input layers | N/A | `{ "items": [{ "id":"cat_1", "name":"rainfall_2025_01" }] }` |
 | `POST` | `/api/sessions/:sessionId/layers/import` | Optional: import catalog item into session as input layer | `{ "catalogItemId": "cat_1" }` | `{ "layerId": "lyr_input_77" }` |
-| `POST` | `/api/sessions/:sessionId/layers/show` | Production-recommended explicit show command (service-backed) | `{ "catalogItemId": "hotspot_2025" }` | `{ ...LayerDescriptor, "visible": true }` |
+| `POST` | `/api/sessions/:sessionId/layers/show` | Explicit server-side show command for an existing session layer or catalog-resolvable artifact | `{ "artifact": "/data/hotspot_2025.parquet" }` | `{ ...LayerDescriptor, "visible": true }` |
 
 ### 2.4 SSE Event Types
 
@@ -288,14 +307,23 @@ Backend should emit these event types from `/api/runs/:runId/stream`:
 - A new map layer is available
 - UI should call `GET /api/layers/:layerId` and render it
 
-5. `clarification_required`
+5. `layer_updated`
+- Existing session layer metadata/state changed (`visible`, `opacity`, `style`, etc.)
+- UI should patch local layer state directly from payload (`layerId`, `changed`)
+- Emitted from:
+  - `PATCH /api/layers/:layerId`
+  - `POST /api/sessions/:sessionId/layers/show`
+  - `POST /api/sessions/:sessionId/layers/import`
+  - Run-driven `show_layer` actions
+
+6. `clarification_required`
 - Expected HITL interrupt (not failure) requiring user response.
 - Payload should include `interruptId` and `question`.
 
-6. `error`
+7. `error`
 - Recoverable/non-recoverable run errors
 
-7. `done`
+8. `done`
 - Run completed
 
 #### SSE event examples
@@ -316,6 +344,11 @@ data: {"type":"layer_created","runId":"run_456","sessionId":"sess_123","timestam
 ```
 
 ```text
+event: layer_updated
+data: {"type":"layer_updated","runId":"run_456","sessionId":"sess_123","timestamp":"2026-05-13T12:10:21Z","payload":{"layerId":"lyr_in_002","changed":{"visible":true}}}
+```
+
+```text
 event: clarification_required
 data: {"type":"clarification_required","runId":"run_456","sessionId":"sess_123","timestamp":"2026-05-13T12:10:22Z","payload":{"interruptId":"intr_1","question":"Which month in 2025 should be used?"}}
 ```
@@ -328,6 +361,7 @@ data: {"type":"done","runId":"run_456","sessionId":"sess_123","timestamp":"2026-
 ### 2.5 Request/Response Examples by Endpoint
 
 #### `POST /api/sessions`
+Purpose: Create a new session for one UI tab/user workflow.
 
 Request:
 ```http
@@ -345,7 +379,20 @@ Response:
 }
 ```
 
+#### `GET /api/sessions/sess_123`
+Purpose: Retrieve session metadata and latest run pointer.
+
+Response:
+```json
+{
+  "sessionId": "sess_123",
+  "status": "active",
+  "lastRunId": "run_456"
+}
+```
+
 #### `GET /api/sessions/sess_123/layers`
+Purpose: Return current session layer registry used by map + layer panel.
 
 Response:
 ```json
@@ -366,7 +413,67 @@ Response:
 }
 ```
 
+#### `GET /api/catalog`
+Purpose: List globally available catalog items (discovery only; not yet session layers).
+
+Response:
+```json
+{
+  "items": [
+    {
+      "catalogItemId": "cat_001",
+      "description": "Hotspots in Thailand for the year 2024",
+      "file": "/data/hotspot_2024.parquet",
+      "type": "GEOPARQUET",
+      "country": "Thailand",
+      "year": 2024
+    }
+  ]
+}
+```
+
+#### `POST /api/sessions/sess_123/layers/import`
+Purpose: Materialize a catalog item into this session as an input layer.
+
+Request:
+```json
+{
+  "catalogItemId": "cat_001"
+}
+```
+
+Response:
+```json
+{
+  "id": "lyr_in_001",
+  "name": "Hotspots in Thailand for the year 2024",
+  "kind": "geojson",
+  "visible": true,
+  "catalogItemId": "cat_001"
+}
+```
+
+#### `POST /api/sessions/sess_123/layers/show`
+Purpose: Explicitly show one target layer (agent-driven or API-driven command).
+
+Request:
+```json
+{
+  "artifact": "/data/hotspot_2024.parquet"
+}
+```
+
+Response:
+```json
+{
+  "id": "lyr_in_001",
+  "name": "Hotspots in Thailand for the year 2024",
+  "visible": true
+}
+```
+
 #### `POST /api/sessions/sess_123/chat`
+Purpose: Start a run for the user message; returns `runId` immediately.
 
 Request:
 ```json
@@ -386,7 +493,53 @@ Response:
 }
 ```
 
+#### `GET /api/runs/run_456`
+Purpose: Poll current run status and terminal fields (error/decline/interrupt state).
+
+Response:
+```json
+{
+  "runId": "run_456",
+  "sessionId": "sess_123",
+  "status": "running",
+  "startedAt": "2026-05-13T12:10:00Z",
+  "finishedAt": null,
+  "error": null
+}
+```
+
+#### `GET /api/runs/run_456/stream` (SSE)
+Purpose: Stream incremental run events (`message`, `tool_*`, `layer_*`, `clarification_required`, `done`, `error`).
+
+Response stream example:
+```text
+event: message
+data: {"type":"message","runId":"run_456","sessionId":"sess_123","timestamp":"2026-05-13T12:10:00Z","payload":{"status":"running"}}
+
+event: layer_updated
+data: {"type":"layer_updated","runId":"run_456","sessionId":"sess_123","timestamp":"2026-05-13T12:10:21Z","payload":{"layerId":"lyr_in_001","changed":{"visible":true}}}
+```
+
+#### `POST /api/runs/run_456/resume`
+Purpose: Continue an interrupted HITL run with user answer for `interruptId`.
+
+Request:
+```json
+{
+  "interruptId": "intr_1",
+  "answer": "Use March 2025 only"
+}
+```
+
+Response:
+```json
+{
+  "runId": "run_456"
+}
+```
+
 #### `GET /api/layers/lyr_out_001`
+Purpose: Fetch one layer descriptor by layer ID.
 
 Response:
 ```json
@@ -404,6 +557,7 @@ Response:
 ```
 
 #### `PATCH /api/layers/lyr_out_001`
+Purpose: Persist layer UI state changes (`visible`, `opacity`, `style`) in backend session state.
 
 Request:
 ```json
@@ -419,6 +573,44 @@ Response:
   "id": "lyr_out_001",
   "visible": false,
   "opacity": 0.6
+}
+```
+
+#### `GET /api/artifacts/art_001/content`
+Purpose: Stream raw artifact bytes for map/data consumption (GeoJSON, TIFF, etc.).
+
+Important identifier semantics:
+- `artifactId` is the artifact registry identifier (for example `art_001`).
+- `artifactId` is **not** `layerId`.
+- One layer descriptor references one source URL, and that URL includes an
+  artifact ID: `LayerDescriptor.source.url = /api/artifacts/{artifactId}/content`.
+
+Lookup flow:
+1. UI has a `layerId`.
+2. UI fetches `GET /api/layers/{layerId}` (or reads it from session layer list).
+3. UI reads `source.url` from the descriptor.
+4. UI requests `GET /api/artifacts/{artifactId}/content` using that URL.
+
+Coverage:
+- Works for imported catalog layers and agent-created output layers.
+- Backend artifact provider resolves the storage path (local FS in POC, S3-like in production).
+
+Response:
+```http
+HTTP/1.1 200 OK
+Content-Type: application/geo+json
+
+{ "type": "FeatureCollection", "features": [] }
+```
+
+#### `GET /api/health`
+Purpose: Health/readiness check for UI and local ops.
+
+Response:
+```json
+{
+  "status": "ok",
+  "timestamp": "2026-05-13T12:00:00Z"
 }
 ```
 
@@ -454,7 +646,8 @@ Agent stack:
 6. Backend emits incremental events (`message`, `tool_start`, `tool_end`).
 7. When output layer is produced, backend emits `layer_created`.
 8. UI fetches new layer descriptor and adds it to MapLibre.
-9. User toggles visibility/style in Layer Panel; UI persists via `PATCH /api/layers/:id`.
+9. User toggles visibility/style in Layer Panel; UI persists via `PATCH /api/layers/:id` (backend is source of truth).
+10. Backend emits `layer_updated`; UI patches layer state without full layer-list reload.
 10. If run emits `clarification_required`, UI captures `interruptId`, prompts user, and calls `POST /api/runs/:runId/resume` to continue the same run.
 
 ### 3.3 Why `deck.gl` Is Excluded From Initial POC
