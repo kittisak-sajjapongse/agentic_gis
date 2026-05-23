@@ -34,7 +34,8 @@ Scope is proof-of-concept only.
 | [BACKEND-010](#BACKEND-010) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-22 |
 | [AGENT-003](#AGENT-003) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-22 |
 | [BACKEND-011](#BACKEND-011) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-23 |
-| [UI-006](#UI-006) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
+| [UI-006](#UI-006) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-23 |
+| [UI-008](#UI-008) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
 | [QA-002](#QA-002) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
 | [ARCH-002](#ARCH-002) | - | TODO | Unassigned | - |
 | [BACKEND-009](#BACKEND-009) | - | TODO | Unassigned | - |
@@ -762,7 +763,7 @@ Scope is proof-of-concept only.
 
 <a id="UI-006"></a>
 
-## UI-006 [TODO] - Handle show-layer and `layer_updated` events in map state
+## UI-006 [DONE] - Handle show-layer and `layer_updated` events in map state
 **Component:** UI
 **EPIC:** `EPIC-LAYERSHOW-001`
 
@@ -785,6 +786,38 @@ Scope is proof-of-concept only.
 1. Start session and chat request for a known layer.
 2. Observe streamed updates.
 3. Confirm map visibility and checkbox state update correctly.
+
+---
+
+<a id="UI-008"></a>
+
+## UI-008 [TODO] - Add catalog browser and import flow in UI
+**Component:** UI
+**EPIC:** `EPIC-LAYERSHOW-001`
+
+**Goal**
+- Let users browse global catalog items and import selected items into the
+  active session from UI.
+
+**Deliverables**
+- Add UI data load for `GET /api/catalog`.
+- Add catalog panel/list with basic metadata (id/description/type/time/location fields when present).
+- Add per-item action that calls:
+  - `POST /api/sessions/:sessionId/layers/import`
+- After import success, update map/layer panel state with minimal reload:
+  - prefer single-layer upsert from response; fallback to `GET /api/sessions/:sessionId/layers`.
+- Display actionable error text when catalog fetch/import fails.
+
+**Acceptance Criteria**
+- User can see catalog entries in UI.
+- Clicking import on a catalog item adds a visible input layer in current session.
+- Imported layer appears in layer panel and on map without requiring full page refresh.
+
+**Verification**
+1. Start UI and confirm catalog list loads via `GET /api/catalog`.
+2. Import one known catalog item via UI action.
+3. Confirm layer appears under input layers and renders on map.
+4. Reload page, continue same session, and confirm imported layer remains listed.
 
 ---
 
