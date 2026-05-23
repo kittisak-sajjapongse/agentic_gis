@@ -101,6 +101,47 @@ class RunService:
         for queue in self._subscribers.get(run_id, []):
             queue.put_nowait(event)
 
+    def emit_layer_updated(
+        self,
+        *,
+        run_id: str,
+        layer_id: str,
+        changed: dict[str, Any],
+    ) -> None:
+        """Emit a layer-updated event into one run stream."""
+        self._emit_event(
+            run_id,
+            "layer_updated",
+            {
+                "layerId": layer_id,
+                "changed": changed,
+            },
+        )
+
+    def emit_session_layer_updated(
+        self,
+        *,
+        session_id: str,
+        layer_id: str,
+        changed: dict[str, Any],
+    ) -> None:
+        """Emit layer-updated to all active run streams for a session.
+
+        This is used by non-run HTTP mutation endpoints (`PATCH /api/layers/...`,
+        `POST /api/sessions/{id}/layers/show`, `.../layers/import`) so a connected
+        UI run stream can react to layer state changes without full polling reload.
+        """
+        for run in self._runs.values():
+            if run.sessionId != session_id:
+                continue
+            if run.status not in {"queued", "running", "interrupted"}:
+                continue
+            self.emit_layer_updated(
+                run_id=run.runId,
+                layer_id=layer_id,
+                changed=changed,
+            )
+
     def _terminal_event_for_run(self, run: RunModel) -> dict[str, Any] | None:
         if run.status == "completed":
             payload: dict[str, Any] = {"status": "completed"}
@@ -414,10 +455,10 @@ class RunService:
                 artifact,
                 layer.id,
             )
-            self._emit_event(
-                run_id,
-                "layer_created",
-                {"layerId": layer.id},
+            self.emit_layer_updated(
+                run_id=run_id,
+                layer_id=layer.id,
+                changed={"visible": layer.visible},
             )
 
     def _emit_decline_if_present(self, run_id: str, state: Any) -> None:

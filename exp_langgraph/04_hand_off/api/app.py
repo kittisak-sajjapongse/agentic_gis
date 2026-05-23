@@ -103,6 +103,25 @@ def create_app() -> FastAPI:
         catalog_importer=layer_importer,
     )
 
+    def emit_layer_updated_for_session(
+        session_id: str,
+        layer: LayerDescriptor,
+        changed: dict[str, object],
+    ) -> None:
+        # Emit to any active run streams so UI can patch one layer in-place
+        # instead of reloading the whole layer list.
+        run_service.emit_session_layer_updated(
+            session_id=session_id,
+            layer_id=layer.id,
+            changed=changed,
+        )
+
+    def resolve_session_id_for_layer(layer_id: str) -> str | None:
+        for sid, items in layer_service.dump_state().items():
+            if any(item.get("id") == layer_id for item in items):
+                return sid
+        return None
+
     @app.get("/api/health")
     async def health() -> dict[str, str]:
         return {
@@ -180,6 +199,11 @@ def create_app() -> FastAPI:
                 session_id=session_id,
                 catalog_item_id=payload.catalogItemId,
             )
+            emit_layer_updated_for_session(
+                session_id=session_id,
+                layer=layer,
+                changed={"visible": layer.visible, "catalogItemId": layer.catalogItemId},
+            )
             return layer.model_dump()
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -197,6 +221,11 @@ def create_app() -> FastAPI:
                 artifact=payload.artifact,
                 catalog_item_id=payload.catalogItemId,
                 layer_id=payload.layerId,
+            )
+            emit_layer_updated_for_session(
+                session_id=session_id,
+                layer=layer,
+                changed={"visible": layer.visible},
             )
             return layer.model_dump()
         except ValueError as exc:
@@ -221,9 +250,24 @@ def create_app() -> FastAPI:
                 status_code=400,
                 detail="Invalid opacity: must be between 0.0 and 1.0",
             )
+        current = layer_service.get_layer(layer_id)
+        if current is None:
+            raise HTTPException(status_code=404, detail="Layer not found")
         layer = layer_service.update_layer(layer_id, patch)
         if layer is None:
             raise HTTPException(status_code=404, detail="Layer not found")
+        changed: dict[str, object] = {}
+        if patch.visible is not None and patch.visible != current.visible:
+            changed["visible"] = layer.visible
+        if patch.opacity is not None and patch.opacity != current.opacity:
+            changed["opacity"] = layer.opacity
+        if patch.style is not None and patch.style != current.style:
+            changed["style"] = layer.style.model_dump()
+        if changed:
+            # LayerDescriptor does not carry session id; resolve by index scan.
+            session_id = resolve_session_id_for_layer(layer_id)
+            if session_id is not None:
+                emit_layer_updated_for_session(session_id=session_id, layer=layer, changed=changed)
         # model_dump() serializes the updated Pydantic model for response output.
         return layer.model_dump()
 

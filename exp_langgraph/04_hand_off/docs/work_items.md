@@ -33,7 +33,7 @@ Scope is proof-of-concept only.
 | [MCP-001](#MCP-001) | - | DONE | Codex | 2026-05-20 |
 | [BACKEND-010](#BACKEND-010) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-22 |
 | [AGENT-003](#AGENT-003) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-22 |
-| [BACKEND-011](#BACKEND-011) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
+| [BACKEND-011](#BACKEND-011) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-23 |
 | [UI-006](#UI-006) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
 | [QA-002](#QA-002) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
 | [ARCH-002](#ARCH-002) | - | TODO | Unassigned | - |
@@ -732,7 +732,7 @@ Scope is proof-of-concept only.
 
 <a id="BACKEND-011"></a>
 
-## BACKEND-011 [TODO] - Emit `layer_updated` SSE event for visibility/state changes
+## BACKEND-011 [DONE] - Emit `layer_updated` SSE event for visibility/state changes
 **Component:** BACKEND
 **EPIC:** `EPIC-LAYERSHOW-001`
 

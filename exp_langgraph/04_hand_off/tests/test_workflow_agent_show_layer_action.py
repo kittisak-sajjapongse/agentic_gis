@@ -101,7 +101,7 @@ def test_workflow_agent_show_layer_action_valid() -> None:
             status = rs.get_run(run.runId)
             assert status is not None and status.status == "completed"
             assert action_service.calls == [("sess_action_ok", "cat_001", None, None)]
-            assert "layer_created" in events
+            assert "layer_updated" in events
             assert "done" in events
         finally:
             run_service_module.build_main_graph = original_builder
