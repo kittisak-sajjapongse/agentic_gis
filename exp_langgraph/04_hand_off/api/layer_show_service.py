@@ -6,6 +6,7 @@ from typing import Any, Protocol
 import geopandas as gpd
 import logging
 
+from api.geojson_utils import normalize_geojson_to_epsg4326
 from api.layer_service import LayerService
 from domain.state_models import LayerDescriptor, LayerPatchRequest, LayerSource, LayerStyle
 from tools.artifact_provider import ArtifactProvider
@@ -149,7 +150,16 @@ class CatalogLayerImporter:
         gdf = gpd.read_parquet(parquet_path)
         output_path = parquet_path.with_name(f"{parquet_path.stem}.catalog.geojson")
         output_path.write_text(gdf.to_json(default=str), encoding="utf-8")
-        return output_path
+        normalized = self._normalize_geojson_to_epsg4326(output_path)
+        return normalized or output_path
+
+    def _normalize_geojson_to_epsg4326(self, geojson_path: Path) -> Path | None:
+        return normalize_geojson_to_epsg4326(
+            geojson_path,
+            logger=logger,
+            output_suffix=".epsg4326.geojson",
+            log_prefix="Catalog GeoJSON",
+        )
 
 
 class LayerShowService:

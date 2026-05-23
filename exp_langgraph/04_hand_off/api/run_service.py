@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
-import json
 from pathlib import Path
 import logging
 import traceback
@@ -12,8 +11,8 @@ from uuid import uuid4
 import geopandas as gpd
 from langchain_core.messages import HumanMessage
 from langgraph.types import Command
-from pyproj import CRS
 
+from api.geojson_utils import normalize_geojson_to_epsg4326
 from api.layer_service import LayerService
 from domain.state_models import LayerDescriptor, LayerSource, LayerStyle, RunModel
 from graphs.main_graph import build_main_graph
@@ -349,55 +348,12 @@ class RunService:
     def _normalize_geojson_to_epsg4326(
         self, geojson_path: Path, run_id: str
     ) -> Path | None:
-        try:
-            gdf = gpd.read_file(geojson_path)
-
-            if gdf.crs is None:
-                payload = json.loads(geojson_path.read_text(encoding="utf-8"))
-                crs_name = (
-                    payload.get("crs", {})
-                    .get("properties", {})
-                    .get("name")
-                )
-                if crs_name:
-                    try:
-                        gdf = gdf.set_crs(CRS.from_user_input(crs_name))
-                    except Exception:
-                        logger.warning(
-                            "GeoJSON declared unparseable CRS=%s path=%s; keeping original geometry",
-                            crs_name,
-                            str(geojson_path),
-                        )
-
-            if gdf.crs is None:
-                logger.warning(
-                    "GeoJSON missing CRS path=%s; unable to normalize to EPSG:4326",
-                    str(geojson_path),
-                )
-                return None
-
-            if str(gdf.crs).upper() == "EPSG:4326":
-                return None
-
-            transformed = gdf.to_crs(epsg=4326)
-            output_path = geojson_path.with_name(
-                f"{geojson_path.stem}.run_{run_id}.epsg4326.geojson"
-            )
-            output_path.write_text(transformed.to_json(default=str), encoding="utf-8")
-            logger.info(
-                "Normalized GeoJSON CRS to EPSG:4326 source=%s output=%s",
-                str(geojson_path),
-                str(output_path),
-            )
-            return output_path
-        except Exception as exc:
-            logger.exception(
-                "Failed to normalize GeoJSON CRS path=%s run_id=%s error=%s",
-                str(geojson_path),
-                run_id,
-                str(exc),
-            )
-            return None
+        return normalize_geojson_to_epsg4326(
+            geojson_path,
+            logger=logger,
+            output_suffix=f".run_{run_id}.epsg4326.geojson",
+            log_prefix="GeoJSON",
+        )
 
     def _normalize_output_type(self, output_type: Any) -> str | None:
         if not isinstance(output_type, str):
