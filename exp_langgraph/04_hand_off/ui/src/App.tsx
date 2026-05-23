@@ -33,6 +33,20 @@ type LayerDescriptor = {
   origin: 'input' | 'agent_output';
 };
 
+type CatalogItem = {
+  catalogItemId: string;
+  description?: string;
+  file?: string;
+  type?: string;
+  continent?: string;
+  country?: string;
+  areaName?: string;
+  year?: number;
+  month?: number;
+  day?: number;
+  time?: string;
+};
+
 type ChatMessage = {
   id: string;
   role: 'user' | 'system';
@@ -134,6 +148,10 @@ export function App() {
   const [layers, setLayers] = useState<LayerDescriptor[]>([]);
   const [layerLoading, setLayerLoading] = useState<boolean>(true);
   const [layerError, setLayerError] = useState<string | null>(null);
+  const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState<boolean>(false);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [catalogImportingId, setCatalogImportingId] = useState<string | null>(null);
 
   const [chatInput, setChatInput] = useState<string>('');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -172,6 +190,12 @@ export function App() {
   useEffect(() => {
     if (!sessionId) return;
     void reloadLayers(sessionId);
+  }, [sessionId]);
+
+  // Runs whenever sessionId changes; fetches catalog items for import browser.
+  useEffect(() => {
+    if (!sessionId) return;
+    void reloadCatalog();
   }, [sessionId]);
 
   // Runs on mount to initialize MapLibre and registers cleanup on unmount.
@@ -357,6 +381,56 @@ export function App() {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown patch error';
       setLayerError(message);
+    }
+  }
+
+  async function reloadCatalog() {
+    setCatalogLoading(true);
+    setCatalogError(null);
+    try {
+      const response = await fetch('/api/catalog');
+      if (!response.ok) {
+        throw new Error(`Unable to fetch catalog: HTTP ${response.status}`);
+      }
+      const payload = (await response.json()) as { items: CatalogItem[] };
+      setCatalogItems(payload.items ?? []);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown catalog load error';
+      setCatalogError(message);
+    } finally {
+      setCatalogLoading(false);
+    }
+  }
+
+  async function importCatalogItem(catalogItemId: string) {
+    if (!sessionId) return;
+    setCatalogImportingId(catalogItemId);
+    setCatalogError(null);
+    setLayerError(null);
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/layers/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ catalogItemId }),
+      });
+      if (!response.ok) {
+        throw new Error(`Import failed: HTTP ${response.status}`);
+      }
+      const importedLayer = (await response.json()) as LayerDescriptor;
+      setLayers((prev) => {
+        const existingIdx = prev.findIndex((l) => l.id === importedLayer.id);
+        if (existingIdx >= 0) {
+          const next = [...prev];
+          next[existingIdx] = importedLayer;
+          return next;
+        }
+        return [...prev, importedLayer];
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown catalog import error';
+      setCatalogError(message);
+    } finally {
+      setCatalogImportingId(null);
     }
   }
 
@@ -689,14 +763,28 @@ export function App() {
           {layerLoading ? <p>Loading layers...</p> : null}
           {layerError ? <p className="error-text">{layerError}</p> : null}
 
-          <section>
-            <h3>Input Layers</h3>
-            <LayerList layers={inputLayers} onToggle={toggleLayer} />
+          <section className="left-scroll-block">
+            <h3>Layers</h3>
+            <div className="left-scroll-content">
+              <h4>Input Layers</h4>
+              <LayerList layers={inputLayers} onToggle={toggleLayer} />
+              <h4>Agent Output Layers</h4>
+              <LayerList layers={outputLayers} onToggle={toggleLayer} />
+            </div>
           </section>
 
-          <section>
-            <h3>Agent Output Layers</h3>
-            <LayerList layers={outputLayers} onToggle={toggleLayer} />
+          <section className="left-scroll-block">
+            <h3>Catalog</h3>
+            <div className="left-scroll-content">
+              {catalogLoading ? <p>Loading catalog...</p> : null}
+              {catalogError ? <p className="error-text">{catalogError}</p> : null}
+              <CatalogList
+                items={catalogItems}
+                importingId={catalogImportingId}
+                disabled={!sessionId || chatBusy}
+                onImport={importCatalogItem}
+              />
+            </div>
           </section>
         </aside>
 
@@ -761,6 +849,54 @@ function LayerList({ layers, onToggle }: LayerListProps) {
           </label>
         </li>
       ))}
+    </ul>
+  );
+}
+
+type CatalogListProps = {
+  items: CatalogItem[];
+  importingId: string | null;
+  disabled: boolean;
+  onImport: (catalogItemId: string) => void;
+};
+
+function CatalogList({ items, importingId, disabled, onImport }: CatalogListProps) {
+  if (items.length === 0) {
+    return <p className="muted">No catalog items.</p>;
+  }
+
+  return (
+    <ul className="catalog-list">
+      {items.map((item) => {
+        const title = item.description || item.catalogItemId;
+        const subtitleParts = [
+          item.type,
+          item.country,
+          item.areaName,
+          item.year ? String(item.year) : undefined,
+        ].filter(Boolean);
+        const isImporting = importingId === item.catalogItemId;
+        return (
+          <li key={item.catalogItemId}>
+            <div className="catalog-item">
+              <div className="catalog-item-main">
+                <div className="catalog-title">{title}</div>
+                <div className="catalog-meta">
+                  <code>{item.catalogItemId}</code>
+                  {subtitleParts.length > 0 ? ` · ${subtitleParts.join(' · ')}` : ''}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onImport(item.catalogItemId)}
+                disabled={disabled || isImporting}
+              >
+                {isImporting ? 'Importing...' : 'Import'}
+              </button>
+            </div>
+          </li>
+        );
+      })}
     </ul>
   );
 }

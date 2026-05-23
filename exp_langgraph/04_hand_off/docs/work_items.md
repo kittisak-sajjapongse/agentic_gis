@@ -35,7 +35,7 @@ Scope is proof-of-concept only.
 | [AGENT-003](#AGENT-003) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-22 |
 | [BACKEND-011](#BACKEND-011) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-23 |
 | [UI-006](#UI-006) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-23 |
-| [UI-008](#UI-008) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
+| [UI-008](#UI-008) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-23 |
 | [QA-002](#QA-002) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
 | [ARCH-002](#ARCH-002) | - | TODO | Unassigned | - |
 | [BACKEND-009](#BACKEND-009) | - | TODO | Unassigned | - |
@@ -791,7 +791,7 @@ Scope is proof-of-concept only.
 
 <a id="UI-008"></a>
 
-## UI-008 [TODO] - Add catalog browser and import flow in UI
+## UI-008 [DONE] - Add catalog browser and import flow in UI
 **Component:** UI
 **EPIC:** `EPIC-LAYERSHOW-001`
 
