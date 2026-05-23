@@ -36,7 +36,7 @@ Scope is proof-of-concept only.
 | [BACKEND-011](#BACKEND-011) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-23 |
 | [UI-006](#UI-006) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-23 |
 | [UI-008](#UI-008) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-23 |
-| [QA-002](#QA-002) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
+| [QA-002](#QA-002) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-23 |
 | [ARCH-002](#ARCH-002) | - | TODO | Unassigned | - |
 | [BACKEND-009](#BACKEND-009) | - | TODO | Unassigned | - |
 | [UI-005](#UI-005) | - | TODO | Unassigned | - |
@@ -823,7 +823,7 @@ Scope is proof-of-concept only.
 
 <a id="QA-002"></a>
 
-## QA-002 [TODO] - Add EPIC-LAYERSHOW-001 regression checklist
+## QA-002 [DONE] - Add EPIC-LAYERSHOW-001 regression checklist
 **Component:** QA
 **EPIC:** `EPIC-LAYERSHOW-001`
 

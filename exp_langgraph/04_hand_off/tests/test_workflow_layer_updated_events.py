@@ -101,3 +101,36 @@ def test_workflow_show_endpoint_emits_layer_updated_sse() -> None:
     assert event["payload"]["layerId"] == layer.id
     assert event["payload"]["changed"] == {"visible": True}
 
+
+def test_workflow_import_endpoint_emits_layer_updated_sse() -> None:
+    app = create_app()
+    client = TestClient(app)
+
+    session_id = client.post("/api/sessions", json={}).json()["sessionId"]
+    run_service = app.state.run_service
+    run = run_service.create_run(session_id)
+
+    catalog = client.get("/api/catalog")
+    assert catalog.status_code == 200, catalog.text
+    items = catalog.json().get("items", [])
+    assert items and isinstance(items, list)
+    catalog_item_id = items[0]["catalogItemId"]
+
+    async def _collect() -> dict:
+        async for event in run_service.subscribe(run.runId):
+            if event["type"] == "layer_updated":
+                return event
+        raise AssertionError("Expected layer_updated event")
+
+    async def _run() -> dict:
+        task = asyncio.create_task(_collect())
+        await asyncio.sleep(0)
+        resp = client.post(
+            f"/api/sessions/{session_id}/layers/import",
+            json={"catalogItemId": catalog_item_id},
+        )
+        assert resp.status_code == 200, resp.text
+        return await asyncio.wait_for(task, timeout=3.0)
+
+    event = asyncio.run(_run())
+    assert event["payload"]["changed"].get("visible") is True
