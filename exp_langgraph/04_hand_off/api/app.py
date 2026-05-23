@@ -194,6 +194,7 @@ def create_app() -> FastAPI:
         try:
             layer = layer_show_service.show_layer(
                 session_id=session_id,
+                artifact=payload.artifact,
                 catalog_item_id=payload.catalogItemId,
                 layer_id=payload.layerId,
             )

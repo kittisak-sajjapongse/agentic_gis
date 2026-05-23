@@ -28,6 +28,7 @@ class LayerActionService(Protocol):
         self,
         session_id: str,
         *,
+        artifact: str | None = None,
         catalog_item_id: str | None = None,
         layer_id: str | None = None,
     ) -> LayerDescriptor: ...
@@ -366,23 +367,13 @@ class RunService:
         }
         return aliases.get(normalized, normalized)
 
-    def _normalize_show_layer_action(
-        self, action: dict[str, Any]
-    ) -> tuple[str | None, str | None]:
-        catalog_item_id = action.get("catalog_item_id")
-        if not isinstance(catalog_item_id, str):
-            catalog_item_id = action.get("catalogItemId")
-        layer_id = action.get("layer_id")
-        if not isinstance(layer_id, str):
-            layer_id = action.get("layerId")
-        if isinstance(catalog_item_id, str):
-            catalog_item_id = catalog_item_id.strip()
-        if isinstance(layer_id, str):
-            layer_id = layer_id.strip()
-        return (
-            catalog_item_id if catalog_item_id else None,
-            layer_id if layer_id else None,
-        )
+    def _normalize_show_layer_action(self, action: dict[str, Any]) -> str | None:
+        artifact = action.get("artifact")
+        if isinstance(artifact, str):
+            artifact = artifact.strip() or None
+        else:
+            artifact = None
+        return artifact
 
     def _apply_agent_actions(
         self,
@@ -405,17 +396,20 @@ class RunService:
             if action_type != "show_layer":
                 raise ValueError(f"Unsupported action type: {action_type}")
 
-            catalog_item_id, layer_id = self._normalize_show_layer_action(action)
-            if (catalog_item_id is None) == (layer_id is None):
-                raise ValueError(
-                    "show_layer action requires exactly one of catalog_item_id/catalogItemId "
-                    "or layer_id/layerId"
-                )
+            artifact = self._normalize_show_layer_action(action)
+            if artifact is None:
+                raise ValueError("show_layer action requires non-empty `artifact`")
 
             layer = layer_show_service.show_layer(
                 session_id=session_id,
-                catalog_item_id=catalog_item_id,
-                layer_id=layer_id,
+                artifact=artifact,
+            )
+            logger.info(
+                "Applied agent action show_layer run_id=%s session_id=%s artifact=%s resolved_layer_id=%s",
+                run_id,
+                session_id,
+                artifact,
+                layer.id,
             )
             self._emit_event(
                 run_id,

@@ -45,10 +45,10 @@ def _builder_factory(values: dict):
 
 class _MockedLayerShowService:
     def __init__(self):
-        self.calls: list[tuple[str, str | None, str | None]] = []
+        self.calls: list[tuple[str, str | None, str | None, str | None]] = []
 
-    def show_layer(self, session_id: str, *, catalog_item_id=None, layer_id=None):
-        self.calls.append((session_id, catalog_item_id, layer_id))
+    def show_layer(self, session_id: str, *, artifact=None, catalog_item_id=None, layer_id=None):
+        self.calls.append((session_id, artifact, catalog_item_id, layer_id))
         return LayerDescriptor(
             id="lyr_stub_1",
             name="Stub shown layer",
@@ -70,7 +70,7 @@ def test_workflow_agent_show_layer_action_valid() -> None:
                 "actions": [
                     {
                         "action": "show_layer",
-                        "catalog_item_id": "cat_001",
+                        "artifact": "cat_001",
                     }
                 ],
                 "outputs": [],
@@ -100,7 +100,7 @@ def test_workflow_agent_show_layer_action_valid() -> None:
 
             status = rs.get_run(run.runId)
             assert status is not None and status.status == "completed"
-            assert action_service.calls == [("sess_action_ok", "cat_001", None)]
+            assert action_service.calls == [("sess_action_ok", "cat_001", None, None)]
             assert "layer_created" in events
             assert "done" in events
         finally:
@@ -150,8 +150,44 @@ def test_workflow_agent_show_layer_action_invalid_payload_fails_cleanly() -> Non
 
             status = rs.get_run(run.runId)
             assert status is not None and status.status == "failed"
-            assert "show_layer action requires exactly one" in (status.error or "")
+            assert "show_layer action requires non-empty `artifact`" in (status.error or "")
             assert "error" in events
+        finally:
+            run_service_module.build_main_graph = original_builder
+
+    asyncio.run(_run())
+
+
+def test_workflow_agent_show_layer_action_artifact_selector() -> None:
+    async def _run() -> None:
+        original_builder = run_service_module.build_main_graph
+        run_service_module.build_main_graph = _builder_factory(
+            {
+                "actions": [
+                    {
+                        "action": "show_layer",
+                        "artifact": "/data/hotspot_2024.parquet",
+                    }
+                ],
+                "outputs": [],
+            }
+        )
+        try:
+            rs = RunService()
+            run = rs.create_run("sess_action_path")
+            action_service = _MockedLayerShowService()
+
+            await rs.execute_run(
+                session_id="sess_action_path",
+                run_id=run.runId,
+                message="show hotspot",
+                layer_show_service=action_service,
+            )
+            status = rs.get_run(run.runId)
+            assert status is not None and status.status == "completed"
+            assert action_service.calls == [
+                ("sess_action_path", "/data/hotspot_2024.parquet", None, None)
+            ]
         finally:
             run_service_module.build_main_graph = original_builder
 

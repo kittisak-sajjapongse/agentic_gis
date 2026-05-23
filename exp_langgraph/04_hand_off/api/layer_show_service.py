@@ -4,10 +4,13 @@ from pathlib import Path
 from typing import Any, Protocol
 
 import geopandas as gpd
+import logging
 
 from api.layer_service import LayerService
 from domain.state_models import LayerDescriptor, LayerPatchRequest, LayerSource, LayerStyle
 from tools.artifact_provider import ArtifactProvider
+
+logger = logging.getLogger(__name__)
 
 
 class CatalogImporter(Protocol):
@@ -28,6 +31,7 @@ class CatalogImporter(Protocol):
     """
 
     def import_layer(self, session_id: str, catalog_item_id: str) -> LayerDescriptor: ...
+    def resolve_catalog_item_id_from_file_path(self, file_path: str) -> str | None: ...
 
 
 class CatalogLayerImporter:
@@ -50,6 +54,14 @@ class CatalogLayerImporter:
         self._artifact_provider = artifact_provider
         self._catalog_index = catalog_index
         self._data_mount_dir = Path(data_mount_dir)
+        self._catalog_item_by_path: dict[str, str] = {}
+        for catalog_item_id, item in catalog_index.items():
+            raw_path = str(item.get("file", "")).strip()
+            if not raw_path:
+                continue
+            self._catalog_item_by_path[raw_path] = catalog_item_id
+            resolved = self._resolve_data_path(raw_path)
+            self._catalog_item_by_path[str(resolved)] = catalog_item_id
 
     def import_layer(self, session_id: str, catalog_item_id: str) -> LayerDescriptor:
         if catalog_item_id not in self._catalog_index:
@@ -112,6 +124,16 @@ class CatalogLayerImporter:
         self._layer_service.add_layer(session_id, layer)
         return layer
 
+    def resolve_catalog_item_id_from_file_path(self, file_path: str) -> str | None:
+        """Map a catalog file path to catalog item id when known."""
+        key = file_path.strip()
+        if not key:
+            return None
+        if key in self._catalog_item_by_path:
+            return self._catalog_item_by_path[key]
+        resolved = str(self._resolve_data_path(key))
+        return self._catalog_item_by_path.get(resolved)
+
     def _resolve_data_path(self, raw_path: str) -> Path:
         candidate = Path(raw_path)
         if candidate.exists():
@@ -134,10 +156,17 @@ class LayerShowService:
         self._layer_service = layer_service
         self._catalog_importer = catalog_importer
 
+    def resolve_catalog_item_id_from_file_path(self, file_path: str) -> str | None:
+        resolver = getattr(self._catalog_importer, "resolve_catalog_item_id_from_file_path", None)
+        if callable(resolver):
+            return resolver(file_path)
+        return None
+
     def show_layer(
         self,
         session_id: str,
         *,
+        artifact: str | None = None,
         catalog_item_id: str | None = None,
         layer_id: str | None = None,
     ) -> LayerDescriptor:
@@ -149,12 +178,59 @@ class LayerShowService:
         - If `catalog_item_id` is provided, resolve/import the catalog layer
           into the session (if needed) and ensure it is visible.
         """
+        if artifact is not None and artifact.strip():
+            resolved = self._show_by_artifact(session_id, artifact.strip())
+            logger.info(
+                "show_layer resolved by artifact session_id=%s artifact=%s layer_id=%s",
+                session_id,
+                artifact,
+                resolved.id,
+            )
+            return resolved
         if (catalog_item_id is None) == (layer_id is None):
-            raise ValueError("Provide exactly one of catalogItemId or layerId")
+            raise ValueError("Provide artifact, or exactly one of catalogItemId or layerId")
 
         if layer_id is not None:
-            return self._show_existing_session_layer(session_id, layer_id)
-        return self._show_catalog_item(session_id, catalog_item_id or "")
+            resolved = self._show_existing_session_layer(session_id, layer_id)
+            logger.info(
+                "show_layer resolved by layer_id session_id=%s layer_id=%s",
+                session_id,
+                resolved.id,
+            )
+            return resolved
+        resolved = self._show_catalog_item(session_id, catalog_item_id or "")
+        logger.info(
+            "show_layer resolved by catalog_item_id session_id=%s catalog_item_id=%s layer_id=%s",
+            session_id,
+            catalog_item_id,
+            resolved.id,
+        )
+        return resolved
+
+    def _show_by_artifact(self, session_id: str, artifact: str) -> LayerDescriptor:
+        # 1) exact session layer id
+        if any(l.id == artifact for l in self._layer_service.list_layers(session_id)):
+            return self._show_existing_session_layer(session_id, artifact)
+
+        # 2) exact catalog item id
+        try:
+            return self._show_catalog_item(session_id, artifact)
+        except KeyError:
+            pass
+
+        # 3) catalog file path -> catalog item id
+        catalog_item_id = self.resolve_catalog_item_id_from_file_path(artifact)
+        if catalog_item_id:
+            return self._show_catalog_item(session_id, catalog_item_id)
+
+        # 4) exact session layer name (must be unique)
+        name_matches = [l for l in self._layer_service.list_layers(session_id) if l.name == artifact]
+        if len(name_matches) == 1:
+            return self._show_existing_session_layer(session_id, name_matches[0].id)
+        if len(name_matches) > 1:
+            raise ValueError("Ambiguous artifact: multiple session layers share this name")
+
+        raise KeyError("Artifact not found")
 
     def _show_existing_session_layer(self, session_id: str, layer_id: str) -> LayerDescriptor:
         """Show an existing layer that already belongs to the target session.

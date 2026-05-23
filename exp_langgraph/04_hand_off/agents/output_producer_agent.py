@@ -58,20 +58,19 @@ class OpManager(AgentBase[IAgentState]):
             - You may call tools multiple times before finalizing.
 
             Identifier Semantics for show-layer actions:
-            - `catalog_item_id` identifies a globally available layer in the GIS catalog.
-              Use this when the user asks to show a known catalog layer that may not yet
-              exist in the current session.
-            - `layer_id` identifies a specific layer instance already present in the
-              current session (imported/created earlier).
-            - For action `show_layer`, provide exactly one of `catalog_item_id` or
-              `layer_id` (never both).
-            - If you are unsure which identifier is correct, ask a clarification question.
+            - Prefer using a single `artifact` field for action `show_layer`.
+              Backend will resolve `artifact` deterministically.
+            - `artifact` may be one of:
+              - global catalog item id (e.g., `cat_001`)
+              - existing session layer id (e.g., `lyr_in_xxx`)
+              - catalog file path (e.g., `/data/hotspot_2024.parquet`)
+              - exact session layer name
+            - If uncertain or potentially ambiguous, ask a clarification question.
 
             Example actions:
-            - Show global catalog layer:
-              {"action":"show_layer","catalog_item_id":"cat_001"}
-            - Show existing session layer:
-              {"action":"show_layer","layer_id":"lyr_in_ab12cd34ef56"}
+            - {"action":"show_layer","artifact":"cat_001"}
+            - {"action":"show_layer","artifact":"lyr_in_ab12cd34ef56"}
+            - {"action":"show_layer","artifact":"/data/hotspot_2024.parquet"}
 
             Output Requirements:
             - Your response must be a valid raw JSON string that can be parsed by json.loads
@@ -86,8 +85,7 @@ class OpManager(AgentBase[IAgentState]):
                 "actions": [
                     {
                         "action": <STRING - currently use "show_layer" for layer visibility command>,
-                        "catalog_item_id": <STRING - optional global catalog id to show/import>,
-                        "layer_id": <STRING - optional existing session layer id to show>,
+                        "artifact": <STRING - preferred single selector for layer to show>,
                     },
                     ...
                 ],

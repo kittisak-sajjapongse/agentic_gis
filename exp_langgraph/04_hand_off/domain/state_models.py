@@ -126,7 +126,9 @@ class CatalogImportRequest(BaseModel):
 
 class ShowLayerRequest(BaseModel):
     # Request body for POST /api/sessions/{session_id}/layers/show
-    # Exactly one of catalogItemId or layerId should be provided.
+    # Preferred: provide `artifact` and let backend resolve deterministically.
+    # Legacy: provide exactly one of catalogItemId or layerId.
+    artifact: Optional[str] = None
     catalogItemId: Optional[str] = None
     layerId: Optional[str] = None
 
