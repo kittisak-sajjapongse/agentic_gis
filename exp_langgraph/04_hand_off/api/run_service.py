@@ -190,6 +190,9 @@ class RunService:
         if not file_path.exists() or not file_path.is_file():
             return None
 
+        # Artifact-type resolution point (run outputs):
+        # We resolve how to register/render an artifact by combining declared
+        # `output_type` (from agent payload) with file suffix fallback.
         suffix = file_path.suffix.lower()
         normalized_output_type = self._normalize_output_type(output_type)
         known_output_types = {"GEOPARQUET_LAYER", "GEOTIFF_LAYER"}

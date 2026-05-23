@@ -76,6 +76,9 @@ class CatalogLayerImporter:
         kind = "geojson"
         source_type = "geojson"
         style = LayerStyle(preset="line-default")
+        # Artifact-type resolution point (catalog imports):
+        # We resolve artifact handling/rendering from catalog `type` plus
+        # file suffix fallback when needed.
         suffix = resolved.suffix.lower()
         catalog_type = str(item.get("type", "")).upper()
 
@@ -208,6 +211,13 @@ class LayerShowService:
         return resolved
 
     def _show_by_artifact(self, session_id: str, artifact: str) -> LayerDescriptor:
+        # Artifact identity-resolution point:
+        # This method resolves *what artifact string refers to*:
+        # - session layer id (LayerService)
+        # - catalog item id (global catalog)
+        # - catalog file path (mapped back to catalog item id)
+        # - exact session layer name
+        # If no unique match is found, it raises not-found/ambiguous errors.
         # 1) exact session layer id
         if any(l.id == artifact for l in self._layer_service.list_layers(session_id)):
             return self._show_existing_session_layer(session_id, artifact)
