@@ -37,7 +37,12 @@ Scope is proof-of-concept only.
 | [UI-006](#UI-006) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-23 |
 | [UI-008](#UI-008) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-23 |
 | [QA-002](#QA-002) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-23 |
-| [ARCH-002](#ARCH-002) | - | TODO | Unassigned | - |
+| [ARCH-002](#ARCH-002) | - | DONE | Codex | 2026-05-23 |
+| [AGENT-004](#AGENT-004) | - | TODO | Unassigned | - |
+| [BACKEND-017](#BACKEND-017) | - | TODO | Unassigned | - |
+| [BACKEND-018](#BACKEND-018) | - | TODO | Unassigned | - |
+| [UI-009](#UI-009) | - | TODO | Unassigned | - |
+| [QA-006](#QA-006) | - | TODO | Unassigned | - |
 | [BACKEND-009](#BACKEND-009) | - | TODO | Unassigned | - |
 | [UI-005](#UI-005) | - | TODO | Unassigned | - |
 | [QA-001](#QA-001) | - | TODO | Unassigned | - |
@@ -851,7 +856,7 @@ Scope is proof-of-concept only.
 
 <a id="ARCH-002"></a>
 
-## ARCH-002 [TODO] - Migrate OP contract to actions-only model (post EPIC-LAYERSHOW-001)
+## ARCH-002 [DONE] - Migrate OP contract to actions-only model (post EPIC-LAYERSHOW-001)
 **Component:** ARCH
 
 **Goal**
@@ -907,6 +912,141 @@ Scope is proof-of-concept only.
    - show existing catalog/session layer
    - create new layer from computation and display it
 3. Confirm `outputs` deprecation strategy and timeline are documented.
+
+---
+
+<a id="AGENT-004"></a>
+
+## AGENT-004 [TODO] - Update OP prompt and parser to actions-only response contract
+**Component:** AGENT
+
+**Goal**
+- Remove OP dependence on `outputs` and require action-centric responses only.
+
+**Deliverables**
+- Update OP system prompt to define canonical `actions[]` schema.
+- Remove `outputs` field from OP response instructions/examples.
+- Add parser validation for action types and required fields.
+- For `show_created_layer`, require integer `sourceActionIndex` (not free-form ref string).
+- Add safe fallback/decline path for malformed action payloads.
+
+**Acceptance Criteria**
+- OP responses use `actions[]` as sole backend instruction channel.
+- Invalid action payloads do not crash run and produce actionable decline/error.
+
+**Verification**
+1. Trigger OP with show-existing-layer request.
+2. Trigger OP with create-new-layer request.
+3. Verify both return actions-only payloads and parse successfully.
+
+---
+
+<a id="BACKEND-017"></a>
+
+## BACKEND-017 [TODO] - Add actions-only run processor and `outputs` deprecation gate
+**Component:** BACKEND
+
+**Goal**
+- Execute backend behavior from `actions[]` only and phase out `outputs` handling.
+
+**Deliverables**
+- Introduce action dispatcher for OP actions:
+  - `show_existing_layer`
+  - `create_layer_from_artifact`
+  - `show_created_layer`
+  - `rename_layer`
+- Execute actions with ordered execution context map (`results[index]`) so
+  `show_created_layer.sourceActionIndex` resolves deterministically to a
+  previously created `layerId`.
+- Validate dependent-action references:
+  - index range
+  - referenced action type/result shape
+- Add temporary compatibility gate for legacy `outputs` (feature flag or version guard).
+- Emit structured run errors for unsupported action types.
+
+**Acceptance Criteria**
+- Run execution works with action-only responses.
+- Legacy `outputs` path is explicitly gated/deprecated (not silently mixed).
+
+**Verification**
+1. Execute run with action-only payload and confirm expected layer side effects.
+2. Execute run with legacy `outputs` payload and confirm gated behavior.
+
+---
+
+<a id="BACKEND-018"></a>
+
+## BACKEND-018 [TODO] - Add audit metadata for action execution
+**Component:** BACKEND
+
+**Goal**
+- Track who/what changed layer state when processing OP actions.
+
+**Deliverables**
+- Attach audit metadata to action execution records:
+  - `runId`
+  - actor (`agent` or `user`)
+  - timestamp
+  - action type
+  - target identifiers (`layerId`, `catalogItemId`, artifact ref)
+- Expose audit fields in run diagnostics endpoints/logs.
+
+**Acceptance Criteria**
+- Action executions are traceable end-to-end for debugging and QA.
+
+**Verification**
+1. Run action-driven flow.
+2. Confirm audit metadata is present in run/log output.
+
+---
+
+<a id="UI-009"></a>
+
+## UI-009 [TODO] - Adapt UI event handling to actions-driven updates
+**Component:** UI
+
+**Goal**
+- Ensure map/layer/chat state updates remain deterministic under actions-only backend contract.
+
+**Deliverables**
+- Handle action-related SSE signals and align local state updates.
+- Ensure layer rename/show/create flows update map panel without ambiguity.
+- Keep fallback layer reload path for race tolerance.
+
+**Acceptance Criteria**
+- UI behavior remains stable for show/create/rename flows under action-only responses.
+
+**Verification**
+1. Trigger show-existing-layer flow via chat.
+2. Trigger create-layer-from-artifact flow via chat.
+3. Verify layer panel and map reflect updates consistently.
+
+---
+
+<a id="QA-006"></a>
+
+## QA-006 [TODO] - Add actions-only contract regression suite
+**Component:** QA
+
+**Goal**
+- Prevent regressions during and after `outputs` deprecation.
+
+**Deliverables**
+- New tests/checklist for action-only scenarios:
+  - show existing layer
+  - create/show generated layer
+  - rename layer
+  - invalid/unknown action payload
+  - invalid `sourceActionIndex` reference handling
+- Explicit test for legacy `outputs` deprecation gate behavior.
+
+**Acceptance Criteria**
+- All actions-only scenarios pass in local POC run.
+- Deprecated paths fail or route according to documented policy.
+
+**Verification**
+1. Run full actions-only test suite.
+2. Capture pass/fail with API + SSE traces.
 
 ---
 
