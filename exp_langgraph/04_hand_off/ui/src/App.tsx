@@ -347,15 +347,11 @@ export function App() {
       if (!response.ok) {
         throw new Error(`Patch failed: HTTP ${response.status}`);
       }
+      const updatedLayer = (await response.json()) as LayerDescriptor;
 
       setLayers((prev) =>
         prev.map((layer) =>
-          layer.id === layerId
-            ? {
-                ...layer,
-                visible: nextVisible,
-              }
-            : layer
+          layer.id === layerId ? { ...layer, ...updatedLayer } : layer
         )
       );
     } catch (error) {
@@ -432,6 +428,43 @@ export function App() {
 
       const onAnyEvent = async (eventName: string, ev: MessageEvent) => {
         const data = JSON.parse(ev.data) as SseEventPayload;
+        if (eventName === 'layer_updated') {
+          const changedLayerId = data.payload.layerId;
+          const changed = data.payload.changed;
+          if (typeof changedLayerId === 'string') {
+            if (changed && typeof changed === 'object') {
+              setLayers((prev) =>
+                prev.map((layer) =>
+                  layer.id === changedLayerId
+                    ? {
+                        ...layer,
+                        ...(changed as Partial<LayerDescriptor>),
+                      }
+                    : layer
+                )
+              );
+            } else {
+              try {
+                const response = await fetch(`/api/layers/${changedLayerId}`);
+                if (response.ok) {
+                  const updatedLayer = (await response.json()) as LayerDescriptor;
+                  setLayers((prev) => {
+                    const existingIdx = prev.findIndex((l) => l.id === updatedLayer.id);
+                    if (existingIdx >= 0) {
+                      const next = [...prev];
+                      next[existingIdx] = updatedLayer;
+                      return next;
+                    }
+                    return [...prev, updatedLayer];
+                  });
+                }
+              } catch {
+                // fall through to optional periodic/session reload convergence
+              }
+            }
+          }
+        }
+
         if (eventName === 'layer_created') {
           const createdLayerId = data.payload.layerId;
           if (typeof createdLayerId === 'string') {
@@ -523,7 +556,17 @@ export function App() {
         }
       };
 
-      ['message', 'tool_start', 'tool_end', 'layer_created', 'clarification_required', 'decline', 'done', 'error'].forEach((name) => {
+      [
+        'message',
+        'tool_start',
+        'tool_end',
+        'layer_created',
+        'layer_updated',
+        'clarification_required',
+        'decline',
+        'done',
+        'error',
+      ].forEach((name) => {
         es.addEventListener(name, (ev) => {
           void onAnyEvent(name, ev as MessageEvent);
         });
