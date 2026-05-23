@@ -31,6 +31,8 @@ class IAgentState(ObservableState):
     selected_layers: Optional[List[GISFile]]
     code: str
     outputs: Any
+    # Optional structured backend actions emitted by agent (e.g., show_layer).
+    actions: Any
 
 
 class IrState(IAgentState):
@@ -43,7 +45,12 @@ class IrState(IAgentState):
 class OpState(IAgentState):
     clarification_question: Optional[str]
     decline_message: Optional[str]
+    # Output artifacts/files produced by OP execution planning/tooling
+    # (for example GEOPARQUET/GEOTIFF layers, reports, charts).
     outputs: Optional[List[OpOutput]]
+    # Structured backend action intents emitted by OP (for example show_layer),
+    # consumed by RunService to mutate session/map layer state.
+    actions: Optional[List[Dict[str, Any]]]
     code: Optional[str]
     # Guardrail flag: OP returned code without observed tool execution.
     op_requires_tool_call: Optional[bool]
@@ -119,7 +126,9 @@ class CatalogImportRequest(BaseModel):
 
 class ShowLayerRequest(BaseModel):
     # Request body for POST /api/sessions/{session_id}/layers/show
-    # Exactly one of catalogItemId or layerId should be provided.
+    # Preferred: provide `artifact` and let backend resolve deterministically.
+    # Legacy: provide exactly one of catalogItemId or layerId.
+    artifact: Optional[str] = None
     catalogItemId: Optional[str] = None
     layerId: Optional[str] = None
 

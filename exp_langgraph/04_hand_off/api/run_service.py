@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import logging
 import traceback
-from typing import Any, AsyncIterator, Callable, Optional
+from typing import Any, AsyncIterator, Callable, Optional, Protocol
 from uuid import uuid4
 
 import geopandas as gpd
@@ -22,6 +22,16 @@ from graphs.output_producer_graph import OP_CLARIFICATION_INTERRUPT_TYPE
 from tools.artifact_provider import ArtifactProvider
 
 logger = logging.getLogger(__name__)
+
+class LayerActionService(Protocol):
+    def show_layer(
+        self,
+        session_id: str,
+        *,
+        artifact: str | None = None,
+        catalog_item_id: str | None = None,
+        layer_id: str | None = None,
+    ) -> LayerDescriptor: ...
 
 
 class RunService:
@@ -180,6 +190,9 @@ class RunService:
         if not file_path.exists() or not file_path.is_file():
             return None
 
+        # Artifact-type resolution point (run outputs):
+        # We resolve how to register/render an artifact by combining declared
+        # `output_type` (from agent payload) with file suffix fallback.
         suffix = file_path.suffix.lower()
         normalized_output_type = self._normalize_output_type(output_type)
         known_output_types = {"GEOPARQUET_LAYER", "GEOTIFF_LAYER"}
@@ -357,6 +370,56 @@ class RunService:
         }
         return aliases.get(normalized, normalized)
 
+    def _normalize_show_layer_action(self, action: dict[str, Any]) -> str | None:
+        artifact = action.get("artifact")
+        if isinstance(artifact, str):
+            artifact = artifact.strip() or None
+        else:
+            artifact = None
+        return artifact
+
+    def _apply_agent_actions(
+        self,
+        session_id: str,
+        run_id: str,
+        actions: Any,
+        layer_show_service: LayerActionService | None,
+    ) -> None:
+        if actions is None:
+            return
+        if not isinstance(actions, list):
+            raise ValueError("Invalid actions payload: expected a list of action objects")
+        if layer_show_service is None:
+            raise RuntimeError("Layer action requested but layer_show_service is not configured")
+
+        for action in actions:
+            if not isinstance(action, dict):
+                raise ValueError("Invalid action item: expected object")
+            action_type = action.get("action")
+            if action_type != "show_layer":
+                raise ValueError(f"Unsupported action type: {action_type}")
+
+            artifact = self._normalize_show_layer_action(action)
+            if artifact is None:
+                raise ValueError("show_layer action requires non-empty `artifact`")
+
+            layer = layer_show_service.show_layer(
+                session_id=session_id,
+                artifact=artifact,
+            )
+            logger.info(
+                "Applied agent action show_layer run_id=%s session_id=%s artifact=%s resolved_layer_id=%s",
+                run_id,
+                session_id,
+                artifact,
+                layer.id,
+            )
+            self._emit_event(
+                run_id,
+                "layer_created",
+                {"layerId": layer.id},
+            )
+
     def _emit_decline_if_present(self, run_id: str, state: Any) -> None:
         if not state or not getattr(state, "values", None):
             return
@@ -443,6 +506,7 @@ class RunService:
         message: str,
         layer_service: LayerService | None = None,
         artifact_provider: ArtifactProvider | None = None,
+        layer_show_service: LayerActionService | None = None,
     ) -> None:
         """Execute one chat run against LangGraph and publish run events.
 
@@ -469,6 +533,12 @@ class RunService:
 
             state = await graph.aget_state(config)
             self._emit_decline_if_present(run_id, state)
+            self._apply_agent_actions(
+                session_id=session_id,
+                run_id=run_id,
+                actions=state.values.get("actions") if state and state.values else None,
+                layer_show_service=layer_show_service,
+            )
             if layer_service is not None and artifact_provider is not None:
                 outputs = state.values.get("outputs") if state and state.values else None
                 if isinstance(outputs, list):
@@ -567,6 +637,7 @@ class RunService:
         answer: str,
         layer_service: LayerService | None = None,
         artifact_provider: ArtifactProvider | None = None,
+        layer_show_service: LayerActionService | None = None,
     ) -> RunModel:
         run, graph, config = self.validate_resume_request(run_id, interrupt_id)
 
@@ -587,6 +658,12 @@ class RunService:
 
             state = await graph.aget_state(config)
             self._emit_decline_if_present(run_id, state)
+            self._apply_agent_actions(
+                session_id=run.sessionId,
+                run_id=run_id,
+                actions=state.values.get("actions") if state and state.values else None,
+                layer_show_service=layer_show_service,
+            )
             if layer_service is not None and artifact_provider is not None:
                 outputs = state.values.get("outputs") if state and state.values else None
                 if isinstance(outputs, list):

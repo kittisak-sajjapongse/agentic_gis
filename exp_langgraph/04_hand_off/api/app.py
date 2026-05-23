@@ -194,6 +194,7 @@ def create_app() -> FastAPI:
         try:
             layer = layer_show_service.show_layer(
                 session_id=session_id,
+                artifact=payload.artifact,
                 catalog_item_id=payload.catalogItemId,
                 layer_id=payload.layerId,
             )
@@ -248,6 +249,7 @@ def create_app() -> FastAPI:
                 message=payload.message,
                 layer_service=layer_service,
                 artifact_provider=artifact_provider,
+                layer_show_service=layer_show_service,
             )
         )
         return {"runId": run.runId}
@@ -289,6 +291,7 @@ def create_app() -> FastAPI:
                     answer=payload.answer,
                     layer_service=layer_service,
                     artifact_provider=artifact_provider,
+                    layer_show_service=layer_show_service,
                 )
             )
             return {"runId": run_id}

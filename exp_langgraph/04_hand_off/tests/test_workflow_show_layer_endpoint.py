@@ -28,10 +28,10 @@ def test_workflow_show_layer_endpoint_catalog_and_layer_id() -> None:
     assert catalog and isinstance(catalog, list)
     catalog_item_id = catalog[0]["catalogItemId"]
 
-    # 1) Show by catalog id imports if missing and returns visible layer.
+    # 1) Show by artifact imports if missing and returns visible layer.
     show1 = client.post(
         f"/api/sessions/{session_id}/layers/show",
-        json={"catalogItemId": catalog_item_id},
+        json={"artifact": catalog_item_id},
     )
     assert show1.status_code == 200, show1.text
     layer = show1.json()
@@ -80,4 +80,3 @@ def test_workflow_show_layer_endpoint_invalid_ids() -> None:
         json={"layerId": "lyr_missing"},
     )
     assert bad_layer.status_code == 404
-

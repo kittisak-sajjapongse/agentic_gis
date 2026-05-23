@@ -32,10 +32,11 @@ Scope is proof-of-concept only.
 | [BACKEND-008](#BACKEND-008) | - | DONE | Codex | 2026-05-20 |
 | [MCP-001](#MCP-001) | - | DONE | Codex | 2026-05-20 |
 | [BACKEND-010](#BACKEND-010) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-22 |
-| [AGENT-003](#AGENT-003) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
+| [AGENT-003](#AGENT-003) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-22 |
 | [BACKEND-011](#BACKEND-011) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
 | [UI-006](#UI-006) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
 | [QA-002](#QA-002) | EPIC-LAYERSHOW-001 | TODO | Unassigned | - |
+| [ARCH-002](#ARCH-002) | - | TODO | Unassigned | - |
 | [BACKEND-009](#BACKEND-009) | - | TODO | Unassigned | - |
 | [UI-005](#UI-005) | - | TODO | Unassigned | - |
 | [QA-001](#QA-001) | - | TODO | Unassigned | - |
@@ -704,7 +705,7 @@ Scope is proof-of-concept only.
 
 <a id="AGENT-003"></a>
 
-## AGENT-003 [TODO] - Extend agent/run contract for show-layer actions
+## AGENT-003 [DONE] - Extend agent/run contract for show-layer actions
 **Component:** AGENT
 **EPIC:** `EPIC-LAYERSHOW-001`
 
@@ -812,6 +813,67 @@ Scope is proof-of-concept only.
 1. Execute checklist against clean environment.
 2. Capture network traces and SSE logs.
 3. Record pass/fail and open follow-up items.
+
+---
+
+<a id="BACKEND-009"></a>
+
+## ARCH-002 [TODO] - Migrate OP contract to actions-only model (post EPIC-LAYERSHOW-001)
+**Component:** ARCH
+
+**Goal**
+- Simplify OP output contract by removing dual-channel semantics (`outputs` + `actions`)
+  and standardizing on `actions` only for both layer display and created-artifact flows.
+
+**Timing**
+- This work starts only after `EPIC-LAYERSHOW-001` is completed.
+- It is intentionally deferred to avoid scope convolution during current EPIC delivery.
+
+**Background**
+- Current OP responses can include both:
+  - `outputs`: artifact/file manifest from computation/code
+  - `actions`: backend intents (for example `show_layer`)
+- This dual-channel design can be confusing because one user intent may be
+  represented in two places, creating overlap and ambiguity in orchestration.
+- During `EPIC-LAYERSHOW-001`, we chose to keep focus on deterministic show-layer
+  behavior and avoid broad contract redesign at the same time.
+- Proposed next-step direction (this work item):
+  - Use a single `actions` channel for all backend-relevant outcomes, including
+    both "show existing layer" and "create/show generated layer" workflows.
+  - Deprecate `outputs` after a staged migration to reduce contract complexity.
+- Discussion summary and agreement:
+  - We agreed to use actions as the single mechanism to indicate what backend/UI
+    should do, instead of splitting intent between `outputs` and `actions`.
+  - Example action set proposed in discussion:
+    - `show_existing_layer`
+    - `create_layer_from_artifact`
+    - `show_created_layer`
+    - `rename_layer`
+    - (extendable for future layer operations)
+- Why this matters:
+  - clearer agent prompt contract
+  - less backend branching logic
+  - fewer edge cases where `outputs` and `actions` conflict
+  - easier testing and more deterministic UI behavior
+
+**Deliverables**
+- Define actions-only schema in architecture/docs (for example: `show_existing_layer`,
+  `create_layer_from_artifact`, `show_created_layer`, etc.).
+- Update run-processing contract so artifact creation/display is expressed via actions.
+- Migration plan for deprecating `outputs` in OP responses.
+- Backward-compatibility period and cutover criteria documented.
+
+**Acceptance Criteria**
+- New contract is explicit and unambiguous with no overlapping meaning between fields.
+- Migration path is documented with low-risk rollout steps.
+- Follow-up implementation work items are added and ordered.
+
+**Verification**
+1. Review updated architecture/API contract docs for consistency.
+2. Trace representative scenarios:
+   - show existing catalog/session layer
+   - create new layer from computation and display it
+3. Confirm `outputs` deprecation strategy and timeline are documented.
 
 ---
 

@@ -42,6 +42,9 @@ class OpManager(AgentBase[IAgentState]):
             Note:
             - Each task step can be an iterative loop where you ask questions to the user if there's any ambiguity or unclear statements until you have a clear idea what user the needs, then move to the next task step.
             - You may ask multiple questions in one response
+            - The `selected_layers` you receive from IR are file inputs resolved
+              from the global GIS catalog and/or session context. Treat them as
+              concrete input files available for analysis/code execution.
             - For every Docker MCP tool call, always pass:
               host_mount_dir="/Users/kittisak/data/work/agentic_gis/exp_langgraph/04_hand_off/data"
             - MCP base image already includes `pyarrow`, `geopandas`, and `shapely`.
@@ -54,6 +57,21 @@ class OpManager(AgentBase[IAgentState]):
             - If execution fails, you may revise code and call tool(s) again, or return decline_message with the execution reason.
             - You may call tools multiple times before finalizing.
 
+            Identifier Semantics for show-layer actions:
+            - Prefer using a single `artifact` field for action `show_layer`.
+              Backend will resolve `artifact` deterministically.
+            - `artifact` may be one of:
+              - global catalog item id (e.g., `cat_001`)
+              - existing session layer id (e.g., `lyr_in_xxx`)
+              - catalog file path (e.g., `/data/hotspot_2024.parquet`)
+              - exact session layer name
+            - If uncertain or potentially ambiguous, ask a clarification question.
+
+            Example actions:
+            - {"action":"show_layer","artifact":"cat_001"}
+            - {"action":"show_layer","artifact":"lyr_in_ab12cd34ef56"}
+            - {"action":"show_layer","artifact":"/data/hotspot_2024.parquet"}
+
             Output Requirements:
             - Your response must be a valid raw JSON string that can be parsed by json.loads
             - Output only the JSON object; do not use markdown fences and do not add extra prose
@@ -64,6 +82,13 @@ class OpManager(AgentBase[IAgentState]):
             - If you are making a tool call, do not output final JSON in that turn.
             - You wil always respond using the JSON structure below:
             {
+                "actions": [
+                    {
+                        "action": <STRING - currently use "show_layer" for layer visibility command>,
+                        "artifact": <STRING - preferred single selector for layer to show>,
+                    },
+                    ...
+                ],
                 "outputs": [
                     {
                         "output_type": <GEOPARQUET, GEOTIFF, REPORTS, or CHARTS>,
@@ -119,6 +144,7 @@ class OpManager(AgentBase[IAgentState]):
             "decline_message": resp_js.get("decline_message"),
             "code": code,
             "outputs": resp_js.get("outputs"),
+            "actions": resp_js.get("actions"),
             "op_requires_tool_call": requires_tool_call,
             "_messages": [response],
         }
