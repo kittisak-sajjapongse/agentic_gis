@@ -37,7 +37,13 @@ Scope is proof-of-concept only.
 | [UI-006](#UI-006) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-23 |
 | [UI-008](#UI-008) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-23 |
 | [QA-002](#QA-002) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-23 |
-| [ARCH-002](#ARCH-002) | - | TODO | Unassigned | - |
+| [ARCH-002](#ARCH-002) | - | DONE | Codex | 2026-05-23 |
+| [AGENT-004](#AGENT-004) | EPIC-OPACTIONS-001 | TODO | Unassigned | - |
+| [BACKEND-017](#BACKEND-017) | EPIC-OPACTIONS-001 | TODO | Unassigned | - |
+| [BACKEND-019](#BACKEND-019) | EPIC-OPACTIONS-001 | TODO | Unassigned | - |
+| [BACKEND-018](#BACKEND-018) | EPIC-OPACTIONS-001 | TODO | Unassigned | - |
+| [UI-009](#UI-009) | EPIC-OPACTIONS-001 | TODO | Unassigned | - |
+| [QA-006](#QA-006) | EPIC-OPACTIONS-001 | TODO | Unassigned | - |
 | [BACKEND-009](#BACKEND-009) | - | TODO | Unassigned | - |
 | [UI-005](#UI-005) | - | TODO | Unassigned | - |
 | [QA-001](#QA-001) | - | TODO | Unassigned | - |
@@ -851,7 +857,7 @@ Scope is proof-of-concept only.
 
 <a id="ARCH-002"></a>
 
-## ARCH-002 [TODO] - Migrate OP contract to actions-only model (post EPIC-LAYERSHOW-001)
+## ARCH-002 [DONE] - Migrate OP contract to actions-only model (post EPIC-LAYERSHOW-001)
 **Component:** ARCH
 
 **Goal**
@@ -907,6 +913,249 @@ Scope is proof-of-concept only.
    - show existing catalog/session layer
    - create new layer from computation and display it
 3. Confirm `outputs` deprecation strategy and timeline are documented.
+
+---
+
+## EPIC-OPACTIONS-001 - OP Actions-Only Migration and Execution Hardening
+**Feature Goal**
+- Complete the post-ARCH-002 migration from dual-channel OP contracts
+  (`outputs` + `actions`) to actions-only execution with deterministic backend
+  behavior, observability, and UI stability.
+
+**Scope**
+- OP prompt/parser actions-only contract
+- Backend action dispatcher + dependency resolution semantics
+- Optional backend logging infrastructure
+- Audit metadata for action execution
+- UI action-driven state/event convergence hardening
+- Regression coverage for action-only and deprecation paths
+
+---
+
+<a id="AGENT-004"></a>
+
+## AGENT-004 [TODO] - Update OP prompt and parser to actions-only response contract
+**Component:** AGENT
+**EPIC:** `EPIC-OPACTIONS-001`
+
+**Goal**
+- Remove OP dependence on `outputs` and require action-centric responses only.
+
+**Deliverables**
+- Update OP system prompt to define canonical `actions[]` schema.
+- Remove `outputs` field from OP response instructions/examples.
+- Add parser validation for action types and required fields.
+- For `show_created_layer`, require integer `sourceActionIndex` (not free-form ref string).
+- Add safe fallback/decline path for malformed action payloads.
+
+**Acceptance Criteria**
+- OP responses use `actions[]` as sole backend instruction channel.
+- Invalid action payloads do not crash run and produce actionable decline/error.
+
+**Verification**
+1. Trigger OP with show-existing-layer request.
+2. Trigger OP with create-new-layer request.
+3. Verify both return actions-only payloads and parse successfully.
+
+---
+
+<a id="BACKEND-017"></a>
+
+## BACKEND-017 [TODO] - Add actions-only run processor and `outputs` deprecation gate
+**Component:** BACKEND
+**EPIC:** `EPIC-OPACTIONS-001`
+
+**Goal**
+- Execute backend behavior from `actions[]` only and phase out `outputs` handling.
+
+**Deliverables**
+- Introduce action dispatcher for OP actions:
+  - `show_existing_layer`
+  - `create_layer_from_artifact`
+  - `show_created_layer`
+  - `rename_layer`
+- Execute actions with ordered execution context map (`results[index]`) so
+  `show_created_layer.sourceActionIndex` resolves deterministically to a
+  previously created `layerId`.
+- Validate dependent-action references:
+  - index range
+  - referenced action type/result shape
+- Add temporary compatibility gate for legacy `outputs` (feature flag or version guard).
+- Emit structured run errors for unsupported action types.
+
+**Acceptance Criteria**
+- Run execution works with action-only responses.
+- Legacy `outputs` path is explicitly gated/deprecated (not silently mixed).
+
+**Verification**
+1. Execute run with action-only payload and confirm expected layer side effects.
+2. Execute run with legacy `outputs` payload and confirm gated behavior.
+
+---
+
+<a id="BACKEND-019"></a>
+
+## BACKEND-019 [TODO] - Add optional rotating file logging backend capability
+**Component:** BACKEND
+**EPIC:** `EPIC-OPACTIONS-001`
+
+**Goal**
+- Provide optional rotating file logs for backend events without changing default stdout/stderr behavior.
+
+**Deliverables**
+- Add logging configuration via environment variables:
+  - `LOG_LEVEL`
+  - `LOG_FILE_ENABLED` (default `false`)
+  - `LOG_FILE_PATH`
+  - `LOG_FILE_ROTATION_MODE` (`size`/`time`)
+  - `LOG_FILE_MAX_BYTES`
+  - `LOG_FILE_BACKUP_COUNT`
+  - `LOG_FILE_ROTATION_WHEN`
+  - `LOG_FILE_ROTATION_INTERVAL`
+- Implement rotating file handler wiring:
+  - disabled by default
+  - enabled only when `LOG_FILE_ENABLED=true`
+- Keep console logging active in all modes.
+
+**Acceptance Criteria**
+- With default env, no rotating log file is created.
+- With `LOG_FILE_ENABLED=true`, rotating log files are created and written.
+- Rotation behavior follows configured mode and limits.
+
+**Verification**
+1. Run backend with default env; verify stdout logs and no file output from this feature.
+2. Run with file logging enabled; verify file creation and content.
+3. Force enough log volume/time to verify rotation and backup retention.
+
+---
+
+<a id="BACKEND-018"></a>
+
+## BACKEND-018 [TODO] - Add audit metadata for action execution
+**Component:** BACKEND
+**EPIC:** `EPIC-OPACTIONS-001`
+
+**Goal**
+- Track who/what changed layer state when processing OP actions.
+
+**Implementation Plan (Exact)**
+1. Add an action-audit record model persisted with each executed action:
+   - `runId`, `sessionId`, timestamp, actor, action type, target identifiers.
+2. Write audit entries from the action dispatcher immediately after each action
+   execution (success/failure result + reason).
+3. Include action index and dependency reference fields for chained actions
+   (for example `sourceActionIndex` in `show_created_layer`).
+4. Surface audit entries in backend diagnostics:
+   - structured logs
+   - run metadata endpoint and/or dedicated run-audit endpoint.
+5. Ensure audit collection is append-only per run and does not mutate prior entries.
+
+**Deliverables**
+- Attach audit metadata to action execution records:
+  - `runId`
+  - actor (`agent` or `user`)
+  - timestamp
+  - action type
+  - target identifiers (`layerId`, `catalogItemId`, artifact ref)
+- Expose audit fields in run diagnostics endpoints/logs.
+
+**Acceptance Criteria**
+- Action executions are traceable end-to-end for debugging and QA.
+
+**Verification**
+1. Run action-driven flow.
+2. Confirm audit metadata is present in run/log output.
+
+**Example Traces**
+1. Action execution success trace:
+```text
+INFO action_audit: run_id=run_456 session_id=sess_123 idx=0 actor=agent action=show_existing_layer target.catalogItemId=cat_002 result=success layer_id=lyr_in_001
+```
+2. Chained action trace (`sourceActionIndex`):
+```text
+INFO action_audit: run_id=run_456 session_id=sess_123 idx=1 actor=agent action=show_created_layer sourceActionIndex=0 resolved.layerId=lyr_out_010 result=success
+```
+3. Action failure trace:
+```text
+ERROR action_audit: run_id=run_456 session_id=sess_123 idx=2 actor=agent action=rename_layer target.layerId=lyr_missing result=failed reason=\"Layer not found\"
+```
+4. Run diagnostics excerpt:
+```json
+{
+  "runId": "run_456",
+  "actionAudit": [
+    { "idx": 0, "type": "show_existing_layer", "result": "success", "layerId": "lyr_in_001" },
+    { "idx": 1, "type": "show_created_layer", "sourceActionIndex": 0, "result": "success", "layerId": "lyr_out_010" }
+  ]
+}
+```
+
+---
+
+<a id="UI-009"></a>
+
+## UI-009 [TODO] - Adapt UI event handling to actions-driven updates
+**Component:** UI
+**EPIC:** `EPIC-OPACTIONS-001`
+
+**Goal**
+- Ensure map/layer/chat state updates remain deterministic under actions-only backend contract.
+
+**Implementation Plan (Exact)**
+1. Add a single `upsertLayer(...)` pathway used by all layer update sources:
+   `layer_created`, `layer_updated`, direct `GET /api/layers/:id`, and session reload.
+2. Normalize SSE event handling for action chains:
+   create -> show -> rename must converge to final local UI state.
+3. Patch local layer state from `layer_updated` payload immediately
+   (no full list reload required for every update).
+4. Keep fallback reconciliation path:
+   on terminal run events (`done`/`error`) perform one final `reloadLayers(sessionId)`.
+5. Add reconnect reconciliation:
+   when stream reconnects by `runId`, ensure stale pending/chat/layer transient state is cleared.
+6. Prevent duplicate map layers/sources by deterministic layer-id keyed upsert logic.
+
+**Deliverables**
+- Handle action-related SSE signals and align local state updates.
+- Ensure layer rename/show/create flows update map panel without ambiguity.
+- Keep fallback layer reload path for race tolerance.
+
+**Acceptance Criteria**
+- UI behavior remains stable for show/create/rename flows under action-only responses.
+
+**Verification**
+1. Trigger show-existing-layer flow via chat.
+2. Trigger create-layer-from-artifact flow via chat.
+3. Verify layer panel and map reflect updates consistently.
+4. Trigger rename-layer flow and confirm panel/map label updates without refresh.
+5. Simulate reconnect mid-run and confirm final UI state converges after reconnect.
+
+---
+
+<a id="QA-006"></a>
+
+## QA-006 [TODO] - Add actions-only contract regression suite
+**Component:** QA
+**EPIC:** `EPIC-OPACTIONS-001`
+
+**Goal**
+- Prevent regressions during and after `outputs` deprecation.
+
+**Deliverables**
+- New tests/checklist for action-only scenarios:
+  - show existing layer
+  - create/show generated layer
+  - rename layer
+  - invalid/unknown action payload
+  - invalid `sourceActionIndex` reference handling
+- Explicit test for legacy `outputs` deprecation gate behavior.
+
+**Acceptance Criteria**
+- All actions-only scenarios pass in local POC run.
+- Deprecated paths fail or route according to documented policy.
+
+**Verification**
+1. Run full actions-only test suite.
+2. Capture pass/fail with API + SSE traces.
 
 ---
 

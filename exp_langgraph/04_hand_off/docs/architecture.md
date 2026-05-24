@@ -614,6 +614,170 @@ Response:
 }
 ```
 
+### 2.6 Output Producer Manager (OPManager) Contract: Actions-Only Model (ARCH-002)
+
+Decision:
+- Standardize Output Producer (OP) backend instruction contract on `actions[]` only.
+- Treat legacy `outputs` as deprecated compatibility input during migration window.
+
+Why:
+1. One user intent should map to one backend instruction channel.
+2. Eliminates overlap/conflict between `outputs` and `actions`.
+3. Simplifies run orchestration branching and testability.
+4. Separation of concerns:
+- `create_layer_from_artifact` handles layer materialization.
+- `show_created_layer` handles display intent (`visible=true`).
+
+Canonical OP response shape:
+```json
+{
+  "actions": [
+    {
+      "type": "show_existing_layer",
+      "catalogItemId": "cat_001"
+    },
+    {
+      "type": "show_existing_layer",
+      "layerId": "lyr_in_002"
+    },
+    {
+      "type": "create_layer_from_artifact",
+      "artifact": {
+        "path": "/data/random_points_2025.parquet",
+        "format": "GEOPARQUET",
+        "description": "Random points generated from user request"
+      }
+    },
+    {
+      "type": "show_created_layer",
+      "sourceActionIndex": 2
+    },
+    {
+      "type": "rename_layer",
+      "layerId": "lyr_out_101",
+      "name": "Hotspots Near Major Roads (2025)"
+    }
+  ],
+  "clarification_question": null,
+  "decline_message": null
+}
+```
+
+Required action semantics:
+1. `show_existing_layer`
+- Input: exactly one of `catalogItemId` or `layerId`.
+- Effect: resolve/import if needed, then set `visible=true`.
+
+2. `create_layer_from_artifact`
+- Input: artifact descriptor with resolvable path and format.
+- Effect: register artifact, normalize/map-render source (e.g., GeoParquet -> GeoJSON), create session layer.
+
+3. `show_created_layer`
+- Input: `sourceActionIndex` referencing a prior `create_layer_from_artifact` action.
+- Effect: mark created layer visible (idempotent).
+
+4. `rename_layer`
+- Input: `layerId`, `name`.
+- Effect: update `LayerDescriptor.name`.
+
+Typical production scenarios for each action type:
+1. `show_existing_layer`
+- User asks to show a known dataset without computation.
+- Example prompts:
+  - "Show hotspot layer for 2025."
+  - "Turn on the rainfall layer for March."
+- OP should emit `show_existing_layer` targeting `catalogItemId` (or `layerId`
+  if already imported in session).
+
+2. `create_layer_from_artifact`
+- User asks for derived/generated data requiring code execution.
+- Example prompts:
+  - "Create random points inside Ubon Ratchathani."
+  - "Generate a 10km buffer around major roads."
+- OP executes code, writes artifact file, then emits `create_layer_from_artifact`
+  with path/format/description.
+
+3. `show_created_layer`
+- User explicitly asks to display the freshly generated output immediately.
+- Example prompts:
+  - "Generate hotspot clusters and show the output on the map."
+  - "Create the layer and display it."
+- OP emits `show_created_layer` with `sourceActionIndex` so
+  backend sets it visible deterministically.
+
+4. `rename_layer`
+- User asks to relabel a layer for readability/comparison.
+- Example prompts:
+  - "Rename this output layer to Burnscar Risk 2025."
+  - "Name the generated points layer Candidate Sites."
+- OP emits `rename_layer` after resolving the target `layerId`.
+
+Run-processing contract:
+1. Parse and validate all actions before execution.
+2. Execute actions in order with an execution context map (result per action index).
+3. Resolve dependent actions (for example `show_created_layer`) by reading
+   prior results from `sourceActionIndex`.
+4. Emit SSE for observed side effects:
+- `layer_created` for new layers
+- `layer_updated` for visibility/name/state changes
+5. If one action fails:
+- emit actionable run error payload with failing action index/type
+- stop or continue according to policy flag (default: stop for POC determinism)
+
+Backend execution detail for dependent actions:
+1. Validate `sourceActionIndex` is an in-range integer for an already executed action.
+2. Validate referenced result contains required `layerId`.
+3. Execute `show_created_layer` using that resolved `layerId`.
+4. Reject invalid references with actionable errors (no silent fallback).
+
+Validation rules:
+1. Unknown `type` => validation error (no silent ignore).
+2. Missing required fields => validation error.
+3. Mutually-exclusive selectors (`catalogItemId` + `layerId`) => validation error.
+4. Idempotent calls should not create duplicate layers unnecessarily.
+
+### 2.7 `outputs` Deprecation Plan
+
+Phase 0 (current architecture decision):
+1. Document actions-only as target contract.
+2. Keep temporary compatibility gate for legacy `outputs`.
+
+Phase 1 (implementation rollout):
+1. OP prompt/parsing emits `actions` only.
+2. Backend run processor prefers `actions`.
+3. Legacy `outputs` accepted only when compatibility flag is enabled.
+
+Phase 2 (cutover):
+1. Disable compatibility flag in default config.
+2. Legacy `outputs` payload returns explicit deprecation error.
+
+Phase 3 (cleanup):
+1. Remove legacy `outputs` code paths.
+2. Remove docs/examples referencing `outputs`.
+
+Cutover criteria:
+1. Action-only regression suite passes.
+2. No production/POC traffic observed relying on legacy `outputs`.
+3. UI flows (show/create/rename) stable under action-only responses.
+
+### 2.8 Scenario Traces (Actions-Only)
+
+Scenario A: Show existing catalog layer
+1. User asks: "Show hotspot 2025."
+2. OP returns `actions=[{"type":"show_existing_layer","catalogItemId":"cat_002"}]`.
+3. Backend resolves/imports layer into session and sets visible.
+4. SSE emits `layer_created` (if imported) and/or `layer_updated`.
+5. UI updates layer panel + map.
+
+Scenario B: Create and show generated layer
+1. User asks: "Generate random points in Thailand and show them."
+2. OP runs code and returns:
+- `create_layer_from_artifact`
+- `show_created_layer`
+3. Backend registers artifact, creates layer, normalizes source for rendering.
+4. SSE emits `layer_created`, then `layer_updated` visible=true.
+5. UI fetches descriptor and renders on map.
+
 ---
 
 ## 3) Proof-of-Concept Design

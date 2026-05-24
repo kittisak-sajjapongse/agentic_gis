@@ -101,6 +101,10 @@ Core endpoint families:
 - Artifact content APIs
 - SSE stream for run events (`message`, `tool_start`, `tool_end`, `layer_created`, `done`, `error`)
 
+OP contract direction (post EPIC-LAYERSHOW-001):
+- Use `actions[]` as the single backend instruction channel for OP outcomes.
+- Deprecate legacy `outputs` channel via staged migration to reduce ambiguity.
+
 Immediate priority (blocking):
 - Human-in-the-loop clarification handling (HITL) so interrupt questions are
   resumed as expected workflow, not surfaced as generic SSE errors.
