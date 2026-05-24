@@ -38,7 +38,7 @@ Scope is proof-of-concept only.
 | [UI-008](#UI-008) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-23 |
 | [QA-002](#QA-002) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-23 |
 | [ARCH-002](#ARCH-002) | - | DONE | Codex | 2026-05-23 |
-| [AGENT-004](#AGENT-004) | EPIC-OPACTIONS-001 | TODO | Unassigned | - |
+| [AGENT-004](#AGENT-004) | EPIC-OPACTIONS-001 | DONE | Codex | 2026-05-24 |
 | [BACKEND-017](#BACKEND-017) | EPIC-OPACTIONS-001 | TODO | Unassigned | - |
 | [BACKEND-019](#BACKEND-019) | EPIC-OPACTIONS-001 | TODO | Unassigned | - |
 | [BACKEND-018](#BACKEND-018) | EPIC-OPACTIONS-001 | TODO | Unassigned | - |
@@ -934,7 +934,7 @@ Scope is proof-of-concept only.
 
 <a id="AGENT-004"></a>
 
-## AGENT-004 [TODO] - Update OP prompt and parser to actions-only response contract
+## AGENT-004 [DONE] - Update OP prompt and parser to actions-only response contract
 **Component:** AGENT
 **EPIC:** `EPIC-OPACTIONS-001`
 

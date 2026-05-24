@@ -7,6 +7,7 @@ from langchain_core.tools import BaseTool
 
 from AgentBase import AgentBase
 from agents.json_response_parser import parse_llm_json_object
+from agents.op_actions import validate_op_actions
 from domain.state_models import IAgentState
 
 
@@ -89,14 +90,6 @@ class OpManager(AgentBase[IAgentState]):
                     },
                     ...
                 ],
-                "outputs": [
-                    {
-                        "output_type": <GEOPARQUET, GEOTIFF, REPORTS, or CHARTS>,
-                        "description": <description of the output>,
-                        "path": <path to output file generated from your script>
-                    },
-                    ...
-                ],
                 "code": <STRING - Python code that generates all the outputs>,
                 "clarification_question": <STRING - clarifying question, null if you don't have any question. You will respond in the language the user uses>,
                 "decline_message": <STRING - reason if you cannot fulfil use's query for any reasons, null if you can fulfil the query>,
@@ -133,6 +126,18 @@ class OpManager(AgentBase[IAgentState]):
             raise ValueError("LLM returned empty content without tool_calls")
 
         resp_js = parse_llm_json_object(content)
+        validated_actions, action_error = validate_op_actions(resp_js.get("actions"))
+        if action_error is not None:
+            # Guardrail: malformed action payload should not crash graph runtime.
+            # Convert to actionable decline for deterministic downstream behavior.
+            return {
+                "clarification_question": None,
+                "decline_message": f"Invalid OP action payload: {action_error}",
+                "code": None,
+                "actions": [],
+                "op_requires_tool_call": False,
+                "_messages": [response],
+            }
         code = resp_js.get("code")
         requires_tool_call = (
             isinstance(code, str)
@@ -143,8 +148,7 @@ class OpManager(AgentBase[IAgentState]):
             "clarification_question": resp_js.get("clarification_question"),
             "decline_message": resp_js.get("decline_message"),
             "code": code,
-            "outputs": resp_js.get("outputs"),
-            "actions": resp_js.get("actions"),
+            "actions": validated_actions,
             "op_requires_tool_call": requires_tool_call,
             "_messages": [response],
         }
