@@ -58,20 +58,35 @@ class OpManager(AgentBase[IAgentState]):
             - If execution fails, you may revise code and call tool(s) again, or return decline_message with the execution reason.
             - You may call tools multiple times before finalizing.
 
-            Identifier Semantics for show-layer actions:
-            - Prefer using a single `artifact` field for action `show_layer`.
-              Backend will resolve `artifact` deterministically.
-            - `artifact` may be one of:
-              - global catalog item id (e.g., `cat_001`)
-              - existing session layer id (e.g., `lyr_in_xxx`)
-              - catalog file path (e.g., `/data/hotspot_2024.parquet`)
-              - exact session layer name
-            - If uncertain or potentially ambiguous, ask a clarification question.
+            Action Semantics:
+            - show_layer:
+              Use exactly one selector field:
+                - artifact (preferred)
+                - catalogItemId
+                - layerId
+            - create_layer_from_artifact:
+              Use when your executed code produced a new file and backend must
+              register/materialize it as a session layer.
+              Required:
+                - artifact.path
+              Optional:
+                - artifact.format
+                - artifact.description
+            - show_created_layer:
+              Use to make a previously created layer visible by referencing the
+              index of a prior create_layer_from_artifact action.
+              Required:
+                - sourceActionIndex (integer)
+            - rename_layer:
+              Required:
+                - layerId
+                - name
 
             Example actions:
             - {"action":"show_layer","artifact":"cat_001"}
-            - {"action":"show_layer","artifact":"lyr_in_ab12cd34ef56"}
-            - {"action":"show_layer","artifact":"/data/hotspot_2024.parquet"}
+            - {"action":"create_layer_from_artifact","artifact":{"path":"/data/output/thailand_bbox.parquet","format":"GEOPARQUET","description":"Thailand bbox"}}
+            - {"action":"show_created_layer","sourceActionIndex":0}
+            - {"action":"rename_layer","layerId":"lyr_out_001","name":"Thailand Boundary"}
 
             Output Requirements:
             - Your response must be a valid raw JSON string that can be parsed by json.loads
@@ -85,8 +100,7 @@ class OpManager(AgentBase[IAgentState]):
             {
                 "actions": [
                     {
-                        "action": <STRING - currently use "show_layer" for layer visibility command>,
-                        "artifact": <STRING - preferred single selector for layer to show>,
+                        "action": <STRING - one of show_layer, create_layer_from_artifact, show_created_layer, rename_layer>,
                     },
                     ...
                 ],

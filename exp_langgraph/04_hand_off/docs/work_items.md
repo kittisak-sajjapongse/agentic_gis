@@ -39,11 +39,12 @@ Scope is proof-of-concept only.
 | [QA-002](#QA-002) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-23 |
 | [ARCH-002](#ARCH-002) | - | DONE | Codex | 2026-05-23 |
 | [AGENT-004](#AGENT-004) | EPIC-OPACTIONS-001 | DONE | Codex | 2026-05-24 |
-| [BACKEND-017](#BACKEND-017) | EPIC-OPACTIONS-001 | TODO | Unassigned | - |
+| [BACKEND-017](#BACKEND-017) | EPIC-OPACTIONS-001 | DONE | Codex | 2026-05-25 |
 | [BACKEND-019](#BACKEND-019) | EPIC-OPACTIONS-001 | TODO | Unassigned | - |
 | [BACKEND-018](#BACKEND-018) | EPIC-OPACTIONS-001 | TODO | Unassigned | - |
 | [UI-009](#UI-009) | EPIC-OPACTIONS-001 | TODO | Unassigned | - |
 | [QA-006](#QA-006) | EPIC-OPACTIONS-001 | TODO | Unassigned | - |
+| [DOC-001](#DOC-001) | EPIC-OPACTIONS-001 | TODO | Unassigned | - |
 | [BACKEND-009](#BACKEND-009) | - | TODO | Unassigned | - |
 | [UI-005](#UI-005) | - | TODO | Unassigned | - |
 | [QA-001](#QA-001) | - | TODO | Unassigned | - |
@@ -961,7 +962,7 @@ Scope is proof-of-concept only.
 
 <a id="BACKEND-017"></a>
 
-## BACKEND-017 [TODO] - Enforce actions-only run processor and fail fast on legacy `outputs`
+## BACKEND-017 [DONE] - Enforce actions-only run processor and fail fast on legacy `outputs`
 **Component:** BACKEND
 **EPIC:** `EPIC-OPACTIONS-001`
 
@@ -1158,6 +1159,31 @@ ERROR action_audit: run_id=run_456 session_id=sess_123 idx=2 actor=agent action=
 **Verification**
 1. Run full actions-only test suite.
 2. Capture pass/fail with API + SSE traces.
+
+---
+
+<a id="DOC-001"></a>
+
+## DOC-001 [TODO] - Remove transitional section 2.7 from architecture after full actions migration
+**Component:** DOC
+**EPIC:** `EPIC-OPACTIONS-001`
+
+**Goal**
+- Remove temporary migration-only documentation once actions-only execution is fully complete.
+
+**Deliverables**
+- Remove section `2.7 outputs Deprecation Status` from `docs/architecture.md`.
+- Ensure any references to transitional `outputs` migration text are removed or rewritten as historical notes.
+
+**Acceptance Criteria**
+- All required OP actions are implemented and verified (`show_layer`, `create_layer_from_artifact`, `show_created_layer`, `rename_layer`).
+- `QA-006` is complete and passing.
+- `docs/architecture.md` no longer contains section `2.7`.
+
+**Verification**
+1. Confirm `QA-006` status is `DONE`.
+2. Confirm section `2.7` is removed from `docs/architecture.md`.
+3. Run a quick doc grep to ensure no stale transitional instructions remain.
 
 ---
 

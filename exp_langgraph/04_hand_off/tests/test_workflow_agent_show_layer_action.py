@@ -150,7 +150,7 @@ def test_workflow_agent_show_layer_action_invalid_payload_fails_cleanly() -> Non
 
             status = rs.get_run(run.runId)
             assert status is not None and status.status == "failed"
-            assert "show_layer action requires non-empty `artifact`" in (status.error or "")
+            assert "exactly one selector" in (status.error or "")
             assert "error" in events
         finally:
             run_service_module.build_main_graph = original_builder

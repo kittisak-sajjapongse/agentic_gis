@@ -13,7 +13,7 @@ This checklist covers:
 2. Show existing session layer by layer id.
 3. Repeated show requests (idempotent behavior).
 4. Invalid selector payloads and not-found responses.
-5. SSE event behavior for `layer_updated` and `layer_created`.
+5. SSE event behavior for `layer_updated`.
 6. UI/backend consistency for visibility toggles.
 
 ## Manual Checklist
@@ -33,13 +33,13 @@ This checklist covers:
 3. `POST /api/sessions/:sessionId/layers/show` with unknown artifact/layer returns `404`.
 4. `PATCH /api/layers/:layerId` emits `layer_updated` and persists state.
 5. `POST /api/sessions/:sessionId/layers/import` emits `layer_updated`.
-6. Output-producing run emits `layer_created`.
+6. Output-producing run (actions path) emits `layer_updated` when layer visibility/state changes.
 
 ## Expected SSE Sequence (Typical)
 1. `message`
 2. `tool_start`
 3. zero or more `tool_end` intermediate updates
-4. `layer_updated` (show/import/toggle paths) and/or `layer_created` (new output)
+4. `layer_updated` (show/import/toggle/action-driven visibility/state paths)
 5. terminal event: `done` or actionable `error`
 
 ## Evidence to Capture
