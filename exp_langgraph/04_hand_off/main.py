@@ -66,7 +66,7 @@ async def run_cli():
         response_payload = {
             "user_language": state.values.get("user_language"),
             "query_summary": state.values.get("query_summary"),
-            "outputs": state.values.get("outputs"),
+            "actions": state.values.get("actions"),
             "decline_message": state.values.get("decline_message"),
         }
         print(f"AI: {json.dumps(response_payload, ensure_ascii=False, indent=2)}")

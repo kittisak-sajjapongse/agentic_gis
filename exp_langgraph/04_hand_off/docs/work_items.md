@@ -961,12 +961,12 @@ Scope is proof-of-concept only.
 
 <a id="BACKEND-017"></a>
 
-## BACKEND-017 [TODO] - Add actions-only run processor and `outputs` deprecation gate
+## BACKEND-017 [TODO] - Enforce actions-only run processor and fail fast on legacy `outputs`
 **Component:** BACKEND
 **EPIC:** `EPIC-OPACTIONS-001`
 
 **Goal**
-- Execute backend behavior from `actions[]` only and phase out `outputs` handling.
+- Execute backend behavior from `actions[]` only and remove legacy `outputs` execution path.
 
 **Deliverables**
 - Introduce action dispatcher for OP actions:
@@ -980,16 +980,18 @@ Scope is proof-of-concept only.
 - Validate dependent-action references:
   - index range
   - referenced action type/result shape
-- Add temporary compatibility gate for legacy `outputs` (feature flag or version guard).
+- Remove legacy `outputs` processing path from run execution.
+- Add fail-fast contract validation:
+  - if unexpected non-empty `outputs` payload is present, raise actionable error.
 - Emit structured run errors for unsupported action types.
 
 **Acceptance Criteria**
 - Run execution works with action-only responses.
-- Legacy `outputs` path is explicitly gated/deprecated (not silently mixed).
+- Legacy `outputs` payload fails fast with clear contract error (not silently mixed).
 
 **Verification**
 1. Execute run with action-only payload and confirm expected layer side effects.
-2. Execute run with legacy `outputs` payload and confirm gated behavior.
+2. Execute run with legacy `outputs` payload and confirm explicit fail-fast error.
 
 ---
 

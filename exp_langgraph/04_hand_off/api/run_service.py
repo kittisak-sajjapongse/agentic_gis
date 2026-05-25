@@ -375,6 +375,24 @@ class RunService:
             artifact = None
         return artifact
 
+    def _fail_on_legacy_outputs(self, state: Any) -> None:
+        """Fail fast when legacy OP `outputs` payload is still emitted.
+
+        BACKEND-017 contract:
+        - Run processing is actions-only.
+        - Non-empty legacy `outputs` indicates stale/invalid producer contract.
+        """
+        if not state or not getattr(state, "values", None):
+            return
+        outputs = state.values.get("outputs")
+        if outputs is None:
+            return
+        if isinstance(outputs, list) and len(outputs) == 0:
+            return
+        raise ValueError(
+            "Legacy `outputs` payload is no longer supported; use `actions[]` only."
+        )
+
     def _apply_agent_actions(
         self,
         session_id: str,
@@ -530,31 +548,13 @@ class RunService:
 
             state = await graph.aget_state(config)
             self._emit_decline_if_present(run_id, state)
+            self._fail_on_legacy_outputs(state)
             self._apply_agent_actions(
                 session_id=session_id,
                 run_id=run_id,
                 actions=state.values.get("actions") if state and state.values else None,
                 layer_show_service=layer_show_service,
             )
-            if layer_service is not None and artifact_provider is not None:
-                outputs = state.values.get("outputs") if state and state.values else None
-                if isinstance(outputs, list):
-                    for output in outputs:
-                        if not isinstance(output, dict):
-                            continue
-                        layer = self._build_layer_from_output(
-                            session_id=session_id,
-                            run_id=run_id,
-                            output=output,
-                            layer_service=layer_service,
-                            artifact_provider=artifact_provider,
-                        )
-                        if layer is not None:
-                            self._emit_event(
-                                run_id,
-                                "layer_created",
-                                {"layerId": layer.id},
-                            )
 
             if state.interrupts:
                 interrupt_id, question = self._extract_clarification(state)
@@ -655,27 +655,13 @@ class RunService:
 
             state = await graph.aget_state(config)
             self._emit_decline_if_present(run_id, state)
+            self._fail_on_legacy_outputs(state)
             self._apply_agent_actions(
                 session_id=run.sessionId,
                 run_id=run_id,
                 actions=state.values.get("actions") if state and state.values else None,
                 layer_show_service=layer_show_service,
             )
-            if layer_service is not None and artifact_provider is not None:
-                outputs = state.values.get("outputs") if state and state.values else None
-                if isinstance(outputs, list):
-                    for output in outputs:
-                        if not isinstance(output, dict):
-                            continue
-                        layer = self._build_layer_from_output(
-                            session_id=run.sessionId,
-                            run_id=run_id,
-                            output=output,
-                            layer_service=layer_service,
-                            artifact_provider=artifact_provider,
-                        )
-                        if layer is not None:
-                            self._emit_event(run_id, "layer_created", {"layerId": layer.id})
 
             if state.interrupts:
                 interrupt_id2, question2 = self._extract_clarification(state)
