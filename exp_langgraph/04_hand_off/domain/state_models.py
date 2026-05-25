@@ -108,6 +108,8 @@ class LayerPatchRequest(BaseModel):
     visible: Optional[bool] = None
     opacity: Optional[float] = None
     style: Optional[LayerStyle] = None
+    # Optional rename field used by action dispatcher (rename_layer).
+    name: Optional[str] = None
 
 
 class ChatRequest(BaseModel):

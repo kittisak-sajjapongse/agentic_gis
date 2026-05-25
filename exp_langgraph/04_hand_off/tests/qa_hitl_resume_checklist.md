@@ -15,7 +15,7 @@ Use this checklist for manual verification of HITL behavior in the UI.
 5. Confirm UI calls `POST /api/runs/:runId/resume`.
 6. Confirm run returns to running state and continues streaming events.
 7. Confirm run reaches terminal status (`done` or actionable `error`).
-8. If output layers are generated, confirm `layer_created` is processed by UI.
+8. If layer state is changed by actions, confirm `layer_updated` is processed by UI.
 
 ## Negative Cases
 1. Resume with wrong `interruptId` should return HTTP 400.

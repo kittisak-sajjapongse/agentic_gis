@@ -3,10 +3,10 @@ from __future__ import annotations
 """
 Purpose
 -------
-Validate AGENT-002 behavior in RunService:
-1) output artifacts are registered,
-2) output layers are persisted in LayerService, and
-3) `layer_created` SSE events are emitted.
+Validate actions-only behavior in RunService:
+1) `show_layer` actions are applied through layer_show_service,
+2) `layer_updated` SSE events are emitted, and
+3) run reaches completed state.
 
 Test style
 ----------
@@ -15,20 +15,17 @@ end-to-end graph test.
 
 How it works
 ------------
-1. Create a temporary GeoJSON output file under `data/`.
 2. Monkeypatch `api.run_service.build_main_graph` so RunService receives a fake
    graph object instead of the real LangGraph graph.
-3. The fake graph returns a synthetic state with one output item in
-   `state.values["outputs"]`.
-4. Run `RunService.execute_run(...)` with real LayerService and
-   LocalArtifactProvider instances.
+3. The fake graph returns a synthetic state with one action item in
+   `state.values["actions"]`.
+4. Run `RunService.execute_run(...)` with mocked layer show service.
 5. Subscribe to RunService events and capture the emitted sequence.
 6. Assert:
    - run reaches terminal completed state,
-   - one output layer is added to session layer registry,
-   - layer source references `/api/artifacts/{artifact_id}/content`,
-   - `layer_created` event is emitted before terminal event.
-7. Restore the original `build_main_graph` and remove temp file in `finally`.
+   - show-layer service was called with expected selector,
+   - `layer_updated` event is emitted before terminal event.
+6. Restore the original `build_main_graph`.
 
 What this test does NOT validate
 --------------------------------
@@ -39,24 +36,20 @@ What this test does NOT validate
 Those belong to a separate true end-to-end test path.
 """
 
-import json
-from pathlib import Path
 import asyncio
 
 import api.run_service as run_service_module
-from api.layer_service import LayerService
 from api.run_service import RunService
-from tools.artifact_provider import LocalArtifactProvider
+from domain.state_models import LayerDescriptor, LayerSource, LayerStyle
 
 
 class FakeState:
-    def __init__(self, output_path: str):
+    def __init__(self):
         self.values = {
-            "outputs": [
+            "actions": [
                 {
-                    "output_type": "GEOPARQUET_LAYER",
-                    "description": "Generated Test Layer",
-                    "path": output_path,
+                    "action": "show_layer",
+                    "artifact": "cat_001",
                 }
             ]
         }
@@ -64,9 +57,6 @@ class FakeState:
 
 
 class FakeGraph:
-    def __init__(self, output_path: str):
-        self._output_path = output_path
-
     async def astream(self, inputs, config=None):
         await asyncio.sleep(0.05)
         if False:
@@ -74,34 +64,44 @@ class FakeGraph:
         return
 
     async def aget_state(self, config=None):
-        return FakeState(self._output_path)
+        return FakeState()
 
 
-def _build_fake_graph_factory(output_path: str):
+def _build_fake_graph_factory():
     async def _fake_build_main_graph():
-        return FakeGraph(output_path)
+        return FakeGraph()
 
     return _fake_build_main_graph
 
 
 async def _run_test_impl() -> None:
-    output_file = Path("data/test_generated_output.geojson")
-    output_file.write_text(
-        json.dumps({"type": "FeatureCollection", "features": []}),
-        encoding="utf-8",
-    )
-
     original_builder = run_service_module.build_main_graph
-    run_service_module.build_main_graph = _build_fake_graph_factory(str(output_file))
+    run_service_module.build_main_graph = _build_fake_graph_factory()
 
     try:
         run_service = RunService()
-        layer_service = LayerService()
-        artifact_provider = LocalArtifactProvider()
 
         session_id = "sess_test_output_register"
-        layer_service.init_session(session_id)
         run = run_service.create_run(session_id)
+        
+        class _MockLayerShowService:
+            def __init__(self) -> None:
+                self.calls: list[tuple[str, str | None]] = []
+
+            def show_layer(self, session_id: str, *, artifact=None, catalog_item_id=None, layer_id=None):
+                self.calls.append((session_id, artifact))
+                return LayerDescriptor(
+                    id="lyr_stub_output_1",
+                    name="Stub Layer",
+                    kind="geojson",
+                    source=LayerSource(type="geojson", url="/api/artifacts/stub/content"),
+                    style=LayerStyle(preset="line-default"),
+                    visible=True,
+                    origin="input",
+                    createdAt="2026-01-01T00:00:00Z",
+                )
+
+        action_service = _MockLayerShowService()
 
         events: list[str] = []
 
@@ -118,29 +118,19 @@ async def _run_test_impl() -> None:
             session_id=session_id,
             run_id=run.runId,
             message="generate one layer",
-            layer_service=layer_service,
-            artifact_provider=artifact_provider,
+            layer_show_service=action_service,
         )
         await consumer
 
         final_run = run_service.get_run(run.runId)
-        layers = layer_service.list_layers(session_id)
 
         assert final_run is not None, "Run record must exist"
         assert final_run.status == "completed", f"Expected completed, got {final_run.status}"
-        assert len(layers) == 1, f"Expected exactly 1 output layer, got {len(layers)}"
-        assert layers[0].origin == "agent_output", "Output layer origin must be agent_output"
-        assert layers[0].createdByRunId == run.runId, "Layer must reference originating run"
-        assert "/api/artifacts/" in layers[0].source.url, "Layer source must point to artifact API"
-        assert "layer_created" in events, f"Expected layer_created event, got {events}"
+        assert action_service.calls == [(session_id, "cat_001")]
+        assert "layer_updated" in events, f"Expected layer_updated event, got {events}"
         assert events[-1] in {"done", "error"}, "Stream must end with terminal event"
-
-        print("PASS: output layer registered and layer_created event emitted")
-        print(f"run_id={run.runId} events={events} layer_id={layers[0].id}")
     finally:
         run_service_module.build_main_graph = original_builder
-        if output_file.exists():
-            output_file.unlink()
 
 
 def test_agent_output_registration() -> None:

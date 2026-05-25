@@ -1,13 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from pathlib import Path
 
 import api.run_service as run_service_module
-from api.layer_service import LayerService
 from api.run_service import RunService
-from tools.artifact_provider import LocalArtifactProvider
 
 
 class FakeState:
@@ -60,47 +57,21 @@ async def _run_test_impl() -> None:
     original_builder = run_service_module.build_main_graph
     run_service_module.build_main_graph = _build_fake_graph_factory(outputs)
 
-    logger = logging.getLogger("api.run_service")
-    captured_logs: list[str] = []
-
-    class _Capture(logging.Handler):
-        def emit(self, record: logging.LogRecord) -> None:
-            captured_logs.append(self.format(record))
-
-    handler = _Capture()
-    handler.setLevel(logging.WARNING)
-    logger.addHandler(handler)
-    logger.setLevel(logging.WARNING)
-
     try:
         run_service = RunService()
-        layer_service = LayerService()
-        artifact_provider = LocalArtifactProvider()
-
-        session_id = "sess_norm"
-        layer_service.init_session(session_id)
-        run = run_service.create_run(session_id)
+        run = run_service.create_run("sess_norm")
 
         await run_service.execute_run(
-            session_id=session_id,
+            session_id="sess_norm",
             run_id=run.runId,
             message="test output type normalization",
-            layer_service=layer_service,
-            artifact_provider=artifact_provider,
         )
 
-        layers = layer_service.list_layers(session_id)
-        assert len(layers) == 3, f"Expected 3 layers, got {len(layers)}"
-        assert all("/api/artifacts/" in layer.source.url for layer in layers)
-        assert any("Unknown output_type=SOME_UNKNOWN_TYPE" in line for line in captured_logs), (
-            "Expected warning log for unknown output type"
-        )
-
-        print("PASS: output type normalization and unknown-type warning behavior")
-        print(f"run_id={run.runId} layers={len(layers)} warnings={len(captured_logs)}")
+        final = run_service.get_run(run.runId)
+        assert final is not None and final.status == "failed"
+        assert "Legacy `outputs` payload is no longer supported" in (final.error or "")
     finally:
         run_service_module.build_main_graph = original_builder
-        logger.removeHandler(handler)
 
 
 def test_output_type_normalization() -> None:

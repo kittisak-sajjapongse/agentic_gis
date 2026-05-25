@@ -327,7 +327,7 @@ def create_app() -> FastAPI:
             # invalid run/interrupt ids before scheduling background execution.
             run_service.validate_resume_request(run_id, payload.interruptId)
             # Resume runs in background so clients can subscribe to SSE first
-            # and receive live events (layer_created, tool_end, done/error).
+            # and receive live events (layer_updated, tool_end, done/error).
             asyncio.create_task(
                 run_service.resume_run(
                     run_id=run_id,

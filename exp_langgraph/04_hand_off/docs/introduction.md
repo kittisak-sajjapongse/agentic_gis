@@ -99,11 +99,11 @@ Core endpoint families:
 - Run/chat APIs
 - Layer APIs
 - Artifact content APIs
-- SSE stream for run events (`message`, `tool_start`, `tool_end`, `layer_created`, `done`, `error`)
+- SSE stream for run events (`message`, `tool_start`, `tool_end`, `layer_updated`, `clarification_required`, `done`, `error`)
 
-OP contract direction (post EPIC-LAYERSHOW-001):
+OP contract status:
 - Use `actions[]` as the single backend instruction channel for OP outcomes.
-- Deprecate legacy `outputs` channel via staged migration to reduce ambiguity.
+- Legacy non-empty `outputs` is fail-fast in current runtime.
 
 Immediate priority (blocking):
 - Human-in-the-loop clarification handling (HITL) so interrupt questions are

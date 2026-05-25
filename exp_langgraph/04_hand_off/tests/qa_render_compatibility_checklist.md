@@ -11,7 +11,7 @@ Use this checklist to verify that agent-generated vector outputs are map-rendera
 1. Start a new session in UI.
 2. Submit a prompt that generates a vector output (GeoParquet).
 3. If clarification is requested, resume run with an answer.
-4. Confirm backend emits `layer_created` for generated output.
+4. Confirm backend emits `layer_updated` for action-driven layer visibility/state updates.
 5. Confirm generated layer appears in Layer Panel.
 6. Confirm generated layer is visible on MapLibre map.
 7. Toggle visibility off/on and confirm map updates.
@@ -27,5 +27,5 @@ Use this checklist to verify that agent-generated vector outputs are map-rendera
 
 ## Evidence to Capture
 - UI screenshots (layer list + map)
-- Backend logs for `layer_created` and any fallback warnings
+- Backend logs for `layer_updated` and any fallback warnings
 - Relevant network traces (`/stream`, `/layers/:id`, `/artifacts/:id/content`)

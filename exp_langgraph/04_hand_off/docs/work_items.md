@@ -38,12 +38,13 @@ Scope is proof-of-concept only.
 | [UI-008](#UI-008) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-23 |
 | [QA-002](#QA-002) | EPIC-LAYERSHOW-001 | DONE | Codex | 2026-05-23 |
 | [ARCH-002](#ARCH-002) | - | DONE | Codex | 2026-05-23 |
-| [AGENT-004](#AGENT-004) | EPIC-OPACTIONS-001 | TODO | Unassigned | - |
-| [BACKEND-017](#BACKEND-017) | EPIC-OPACTIONS-001 | TODO | Unassigned | - |
+| [AGENT-004](#AGENT-004) | EPIC-OPACTIONS-001 | DONE | Codex | 2026-05-24 |
+| [BACKEND-017](#BACKEND-017) | EPIC-OPACTIONS-001 | DONE | Codex | 2026-05-25 |
 | [BACKEND-019](#BACKEND-019) | EPIC-OPACTIONS-001 | TODO | Unassigned | - |
 | [BACKEND-018](#BACKEND-018) | EPIC-OPACTIONS-001 | TODO | Unassigned | - |
 | [UI-009](#UI-009) | EPIC-OPACTIONS-001 | TODO | Unassigned | - |
 | [QA-006](#QA-006) | EPIC-OPACTIONS-001 | TODO | Unassigned | - |
+| [DOC-001](#DOC-001) | EPIC-OPACTIONS-001 | TODO | Unassigned | - |
 | [BACKEND-009](#BACKEND-009) | - | TODO | Unassigned | - |
 | [UI-005](#UI-005) | - | TODO | Unassigned | - |
 | [QA-001](#QA-001) | - | TODO | Unassigned | - |
@@ -934,7 +935,7 @@ Scope is proof-of-concept only.
 
 <a id="AGENT-004"></a>
 
-## AGENT-004 [TODO] - Update OP prompt and parser to actions-only response contract
+## AGENT-004 [DONE] - Update OP prompt and parser to actions-only response contract
 **Component:** AGENT
 **EPIC:** `EPIC-OPACTIONS-001`
 
@@ -961,12 +962,12 @@ Scope is proof-of-concept only.
 
 <a id="BACKEND-017"></a>
 
-## BACKEND-017 [TODO] - Add actions-only run processor and `outputs` deprecation gate
+## BACKEND-017 [DONE] - Enforce actions-only run processor and fail fast on legacy `outputs`
 **Component:** BACKEND
 **EPIC:** `EPIC-OPACTIONS-001`
 
 **Goal**
-- Execute backend behavior from `actions[]` only and phase out `outputs` handling.
+- Execute backend behavior from `actions[]` only and remove legacy `outputs` execution path.
 
 **Deliverables**
 - Introduce action dispatcher for OP actions:
@@ -980,16 +981,18 @@ Scope is proof-of-concept only.
 - Validate dependent-action references:
   - index range
   - referenced action type/result shape
-- Add temporary compatibility gate for legacy `outputs` (feature flag or version guard).
+- Remove legacy `outputs` processing path from run execution.
+- Add fail-fast contract validation:
+  - if unexpected non-empty `outputs` payload is present, raise actionable error.
 - Emit structured run errors for unsupported action types.
 
 **Acceptance Criteria**
 - Run execution works with action-only responses.
-- Legacy `outputs` path is explicitly gated/deprecated (not silently mixed).
+- Legacy `outputs` payload fails fast with clear contract error (not silently mixed).
 
 **Verification**
 1. Execute run with action-only payload and confirm expected layer side effects.
-2. Execute run with legacy `outputs` payload and confirm gated behavior.
+2. Execute run with legacy `outputs` payload and confirm explicit fail-fast error.
 
 ---
 
@@ -1156,6 +1159,31 @@ ERROR action_audit: run_id=run_456 session_id=sess_123 idx=2 actor=agent action=
 **Verification**
 1. Run full actions-only test suite.
 2. Capture pass/fail with API + SSE traces.
+
+---
+
+<a id="DOC-001"></a>
+
+## DOC-001 [TODO] - Remove transitional section 2.7 from architecture after full actions migration
+**Component:** DOC
+**EPIC:** `EPIC-OPACTIONS-001`
+
+**Goal**
+- Remove temporary migration-only documentation once actions-only execution is fully complete.
+
+**Deliverables**
+- Remove section `2.7 outputs Deprecation Status` from `docs/architecture.md`.
+- Ensure any references to transitional `outputs` migration text are removed or rewritten as historical notes.
+
+**Acceptance Criteria**
+- All required OP actions are implemented and verified (`show_layer`, `create_layer_from_artifact`, `show_created_layer`, `rename_layer`).
+- `QA-006` is complete and passing.
+- `docs/architecture.md` no longer contains section `2.7`.
+
+**Verification**
+1. Confirm `QA-006` status is `DONE`.
+2. Confirm section `2.7` is removed from `docs/architecture.md`.
+3. Run a quick doc grep to ensure no stale transitional instructions remain.
 
 ---
 

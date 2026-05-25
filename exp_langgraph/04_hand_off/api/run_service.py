@@ -14,7 +14,13 @@ from langgraph.types import Command
 
 from api.geojson_utils import normalize_geojson_to_epsg4326
 from api.layer_service import LayerService
-from domain.state_models import LayerDescriptor, LayerSource, LayerStyle, RunModel
+from domain.state_models import (
+    LayerDescriptor,
+    LayerPatchRequest,
+    LayerSource,
+    LayerStyle,
+    RunModel,
+)
 from graphs.main_graph import build_main_graph
 from graphs.input_retrieval_graph import IR_CLARIFICATION_INTERRUPT_TYPE
 from graphs.output_producer_graph import OP_CLARIFICATION_INTERRUPT_TYPE
@@ -367,55 +373,293 @@ class RunService:
         }
         return aliases.get(normalized, normalized)
 
-    def _normalize_show_layer_action(self, action: dict[str, Any]) -> str | None:
+    def _normalize_show_layer_action(
+        self, action: dict[str, Any]
+    ) -> tuple[str | None, str | None, str | None]:
         artifact = action.get("artifact")
         if isinstance(artifact, str):
             artifact = artifact.strip() or None
         else:
             artifact = None
-        return artifact
+        catalog_item_id = action.get("catalogItemId")
+        if isinstance(catalog_item_id, str):
+            catalog_item_id = catalog_item_id.strip() or None
+        else:
+            catalog_item_id = None
+        layer_id = action.get("layerId")
+        if isinstance(layer_id, str):
+            layer_id = layer_id.strip() or None
+        else:
+            layer_id = None
+        selector_count = sum(
+            1 for x in [artifact, catalog_item_id, layer_id] if x is not None
+        )
+        if selector_count != 1:
+            raise ValueError(
+                "show_layer action requires exactly one selector: artifact, catalogItemId, or layerId"
+            )
+        return artifact, catalog_item_id, layer_id
+
+    def _normalize_create_layer_action(
+        self, action: dict[str, Any]
+    ) -> tuple[str, str | None, str | None]:
+        artifact_obj = action.get("artifact")
+        if not isinstance(artifact_obj, dict):
+            raise ValueError("create_layer_from_artifact action requires object `artifact`")
+        artifact_path = artifact_obj.get("path")
+        if not isinstance(artifact_path, str) or not artifact_path.strip():
+            raise ValueError(
+                "create_layer_from_artifact action requires non-empty `artifact.path`"
+            )
+        output_type = artifact_obj.get("format")
+        if isinstance(output_type, str):
+            output_type = output_type.strip() or None
+        else:
+            output_type = None
+        description = artifact_obj.get("description")
+        if isinstance(description, str):
+            description = description.strip() or None
+        else:
+            description = None
+        return artifact_path.strip(), output_type, description
+
+    def _normalize_source_action_index(self, action: dict[str, Any]) -> int:
+        source_idx = action.get("sourceActionIndex")
+        if not isinstance(source_idx, int):
+            raise ValueError("show_created_layer action requires integer `sourceActionIndex`")
+        return source_idx
+
+    def _normalize_rename_action(self, action: dict[str, Any]) -> tuple[str, str]:
+        layer_id = action.get("layerId")
+        if not isinstance(layer_id, str) or not layer_id.strip():
+            raise ValueError("rename_layer action requires non-empty `layerId`")
+        name = action.get("name")
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("rename_layer action requires non-empty `name`")
+        return layer_id.strip(), name.strip()
+
+    def _fail_on_legacy_outputs(self, state: Any) -> None:
+        """Fail fast when legacy OP `outputs` payload is still emitted.
+
+        BACKEND-017 contract:
+        - Run processing is actions-only.
+        - Non-empty legacy `outputs` indicates stale/invalid producer contract.
+        """
+        if not state or not getattr(state, "values", None):
+            return
+        outputs = state.values.get("outputs")
+        if outputs is None:
+            return
+        if isinstance(outputs, list) and len(outputs) == 0:
+            return
+        raise ValueError(
+            "Legacy `outputs` payload is no longer supported; use `actions[]` only."
+        )
 
     def _apply_agent_actions(
         self,
         session_id: str,
         run_id: str,
         actions: Any,
+        layer_service: LayerService | None,
+        artifact_provider: ArtifactProvider | None,
         layer_show_service: LayerActionService | None,
     ) -> None:
         if actions is None:
             return
         if not isinstance(actions, list):
             raise ValueError("Invalid actions payload: expected a list of action objects")
-        if layer_show_service is None:
-            raise RuntimeError("Layer action requested but layer_show_service is not configured")
+        action_results: list[dict[str, Any]] = []
+        created_action_indices: list[int] = []
+        shown_created_source_indices: set[int] = set()
 
-        for action in actions:
+        for idx, action in enumerate(actions):
             if not isinstance(action, dict):
                 raise ValueError("Invalid action item: expected object")
             action_type = action.get("action")
-            if action_type != "show_layer":
-                raise ValueError(f"Unsupported action type: {action_type}")
+            if action_type in {"show_layer", "show_existing_layer"}:
+                if layer_show_service is None:
+                    raise RuntimeError(
+                        "Layer action requested but layer_show_service is not configured"
+                    )
+                artifact, catalog_item_id, layer_id = self._normalize_show_layer_action(
+                    action
+                )
+                layer = layer_show_service.show_layer(
+                    session_id=session_id,
+                    artifact=artifact,
+                    catalog_item_id=catalog_item_id,
+                    layer_id=layer_id,
+                )
+                logger.info(
+                    "Applied agent action %s run_id=%s session_id=%s artifact=%s catalog_item_id=%s layer_id=%s resolved_layer_id=%s",
+                    action_type,
+                    run_id,
+                    session_id,
+                    artifact,
+                    catalog_item_id,
+                    layer_id,
+                    layer.id,
+                )
+                self.emit_layer_updated(
+                    run_id=run_id,
+                    layer_id=layer.id,
+                    changed={"visible": layer.visible},
+                )
+                action_results.append({"layerId": layer.id})
+                continue
 
-            artifact = self._normalize_show_layer_action(action)
-            if artifact is None:
-                raise ValueError("show_layer action requires non-empty `artifact`")
+            if action_type == "create_layer_from_artifact":
+                if layer_service is None or artifact_provider is None:
+                    raise RuntimeError(
+                        "create_layer_from_artifact requires layer_service and artifact_provider"
+                    )
+                artifact_path, output_type, description = self._normalize_create_layer_action(
+                    action
+                )
+                output = {
+                    "path": artifact_path,
+                    "output_type": output_type,
+                    "description": description or "Generated output layer",
+                }
+                layer = self._build_layer_from_output(
+                    session_id=session_id,
+                    run_id=run_id,
+                    output=output,
+                    layer_service=layer_service,
+                    artifact_provider=artifact_provider,
+                )
+                if layer is None:
+                    raise ValueError(
+                        f"create_layer_from_artifact could not resolve readable artifact path: {artifact_path}"
+                    )
+                # Keep create and show concerns separate: create starts hidden.
+                updated_hidden = layer_service.update_layer(
+                    layer.id, LayerPatchRequest(visible=False)
+                )
+                if updated_hidden is not None:
+                    layer = updated_hidden
+                logger.info(
+                    "Applied agent action create_layer_from_artifact run_id=%s session_id=%s path=%s layer_id=%s",
+                    run_id,
+                    session_id,
+                    artifact_path,
+                    layer.id,
+                )
+                # Emit without `changed` so UI can fetch/insert the full descriptor.
+                self._emit_event(
+                    run_id,
+                    "layer_updated",
+                    {"layerId": layer.id},
+                )
+                action_results.append({"layerId": layer.id})
+                created_action_indices.append(idx)
+                continue
 
-            layer = layer_show_service.show_layer(
-                session_id=session_id,
-                artifact=artifact,
-            )
-            logger.info(
-                "Applied agent action show_layer run_id=%s session_id=%s artifact=%s resolved_layer_id=%s",
-                run_id,
-                session_id,
-                artifact,
-                layer.id,
-            )
-            self.emit_layer_updated(
-                run_id=run_id,
-                layer_id=layer.id,
-                changed={"visible": layer.visible},
-            )
+            if action_type == "show_created_layer":
+                if layer_service is None:
+                    raise RuntimeError("show_created_layer requires layer_service")
+                source_idx = self._normalize_source_action_index(action)
+                if source_idx < 0 or source_idx >= len(action_results):
+                    raise ValueError(
+                        f"show_created_layer sourceActionIndex out of range: {source_idx}"
+                    )
+                source_layer_id = action_results[source_idx].get("layerId")
+                if not isinstance(source_layer_id, str) or not source_layer_id:
+                    raise ValueError(
+                        f"show_created_layer sourceActionIndex={source_idx} does not reference a created layerId"
+                    )
+                source_action_type = actions[source_idx].get("action")
+                if source_action_type != "create_layer_from_artifact":
+                    raise ValueError(
+                        f"show_created_layer sourceActionIndex={source_idx} must reference create_layer_from_artifact"
+                    )
+                existing = layer_service.get_layer(source_layer_id)
+                if existing is None:
+                    raise KeyError("Layer not found")
+                updated = layer_service.update_layer(
+                    source_layer_id,
+                    LayerPatchRequest(visible=True),
+                )
+                if updated is None:
+                    raise KeyError("Layer not found")
+                logger.info(
+                    "Applied agent action show_created_layer run_id=%s session_id=%s source_idx=%s layer_id=%s",
+                    run_id,
+                    session_id,
+                    source_idx,
+                    source_layer_id,
+                )
+                self.emit_layer_updated(
+                    run_id=run_id,
+                    layer_id=source_layer_id,
+                    changed={"visible": True},
+                )
+                shown_created_source_indices.add(source_idx)
+                action_results.append({"layerId": source_layer_id})
+                continue
+
+            if action_type == "rename_layer":
+                if layer_service is None:
+                    raise RuntimeError("rename_layer requires layer_service")
+                layer_id, new_name = self._normalize_rename_action(action)
+                existing = layer_service.get_layer(layer_id)
+                if existing is None:
+                    raise KeyError("Layer not found")
+                updated = layer_service.update_layer(
+                    layer_id,
+                    LayerPatchRequest(name=new_name),
+                )
+                if updated is None:
+                    raise KeyError("Layer not found")
+                logger.info(
+                    "Applied agent action rename_layer run_id=%s session_id=%s layer_id=%s new_name=%s",
+                    run_id,
+                    session_id,
+                    layer_id,
+                    new_name,
+                )
+                self.emit_layer_updated(
+                    run_id=run_id,
+                    layer_id=layer_id,
+                    changed={"name": new_name},
+                )
+                action_results.append({"layerId": layer_id})
+                continue
+
+            raise ValueError(f"Unsupported action type at index {idx}: {action_type}")
+
+        # Deterministic safety fallback:
+        # If OP creates layers but omits `show_created_layer`, auto-show the
+        # created layers so users see generated results without prompt brittleness.
+        if layer_service is not None:
+            for created_idx in created_action_indices:
+                if created_idx in shown_created_source_indices:
+                    continue
+                created_layer_id = action_results[created_idx].get("layerId")
+                if not isinstance(created_layer_id, str) or not created_layer_id:
+                    continue
+                existing = layer_service.get_layer(created_layer_id)
+                if existing is None or existing.visible:
+                    continue
+                updated = layer_service.update_layer(
+                    created_layer_id,
+                    LayerPatchRequest(visible=True),
+                )
+                if updated is None:
+                    continue
+                logger.info(
+                    "Auto-show fallback applied for created layer run_id=%s session_id=%s source_idx=%s layer_id=%s",
+                    run_id,
+                    session_id,
+                    created_idx,
+                    created_layer_id,
+                )
+                self.emit_layer_updated(
+                    run_id=run_id,
+                    layer_id=created_layer_id,
+                    changed={"visible": True},
+                )
 
     def _emit_decline_if_present(self, run_id: str, state: Any) -> None:
         if not state or not getattr(state, "values", None):
@@ -530,31 +774,15 @@ class RunService:
 
             state = await graph.aget_state(config)
             self._emit_decline_if_present(run_id, state)
+            self._fail_on_legacy_outputs(state)
             self._apply_agent_actions(
                 session_id=session_id,
                 run_id=run_id,
                 actions=state.values.get("actions") if state and state.values else None,
+                layer_service=layer_service,
+                artifact_provider=artifact_provider,
                 layer_show_service=layer_show_service,
             )
-            if layer_service is not None and artifact_provider is not None:
-                outputs = state.values.get("outputs") if state and state.values else None
-                if isinstance(outputs, list):
-                    for output in outputs:
-                        if not isinstance(output, dict):
-                            continue
-                        layer = self._build_layer_from_output(
-                            session_id=session_id,
-                            run_id=run_id,
-                            output=output,
-                            layer_service=layer_service,
-                            artifact_provider=artifact_provider,
-                        )
-                        if layer is not None:
-                            self._emit_event(
-                                run_id,
-                                "layer_created",
-                                {"layerId": layer.id},
-                            )
 
             if state.interrupts:
                 interrupt_id, question = self._extract_clarification(state)
@@ -655,27 +883,15 @@ class RunService:
 
             state = await graph.aget_state(config)
             self._emit_decline_if_present(run_id, state)
+            self._fail_on_legacy_outputs(state)
             self._apply_agent_actions(
                 session_id=run.sessionId,
                 run_id=run_id,
                 actions=state.values.get("actions") if state and state.values else None,
+                layer_service=layer_service,
+                artifact_provider=artifact_provider,
                 layer_show_service=layer_show_service,
             )
-            if layer_service is not None and artifact_provider is not None:
-                outputs = state.values.get("outputs") if state and state.values else None
-                if isinstance(outputs, list):
-                    for output in outputs:
-                        if not isinstance(output, dict):
-                            continue
-                        layer = self._build_layer_from_output(
-                            session_id=run.sessionId,
-                            run_id=run_id,
-                            output=output,
-                            layer_service=layer_service,
-                            artifact_provider=artifact_provider,
-                        )
-                        if layer is not None:
-                            self._emit_event(run_id, "layer_created", {"layerId": layer.id})
 
             if state.interrupts:
                 interrupt_id2, question2 = self._extract_clarification(state)

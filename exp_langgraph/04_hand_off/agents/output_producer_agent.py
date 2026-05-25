@@ -7,6 +7,7 @@ from langchain_core.tools import BaseTool
 
 from AgentBase import AgentBase
 from agents.json_response_parser import parse_llm_json_object
+from agents.op_actions import validate_op_actions
 from domain.state_models import IAgentState
 
 
@@ -57,20 +58,35 @@ class OpManager(AgentBase[IAgentState]):
             - If execution fails, you may revise code and call tool(s) again, or return decline_message with the execution reason.
             - You may call tools multiple times before finalizing.
 
-            Identifier Semantics for show-layer actions:
-            - Prefer using a single `artifact` field for action `show_layer`.
-              Backend will resolve `artifact` deterministically.
-            - `artifact` may be one of:
-              - global catalog item id (e.g., `cat_001`)
-              - existing session layer id (e.g., `lyr_in_xxx`)
-              - catalog file path (e.g., `/data/hotspot_2024.parquet`)
-              - exact session layer name
-            - If uncertain or potentially ambiguous, ask a clarification question.
+            Action Semantics:
+            - show_layer:
+              Use exactly one selector field:
+                - artifact (preferred)
+                - catalogItemId
+                - layerId
+            - create_layer_from_artifact:
+              Use when your executed code produced a new file and backend must
+              register/materialize it as a session layer.
+              Required:
+                - artifact.path
+              Optional:
+                - artifact.format
+                - artifact.description
+            - show_created_layer:
+              Use to make a previously created layer visible by referencing the
+              index of a prior create_layer_from_artifact action.
+              Required:
+                - sourceActionIndex (integer)
+            - rename_layer:
+              Required:
+                - layerId
+                - name
 
             Example actions:
             - {"action":"show_layer","artifact":"cat_001"}
-            - {"action":"show_layer","artifact":"lyr_in_ab12cd34ef56"}
-            - {"action":"show_layer","artifact":"/data/hotspot_2024.parquet"}
+            - {"action":"create_layer_from_artifact","artifact":{"path":"/data/output/thailand_bbox.parquet","format":"GEOPARQUET","description":"Thailand bbox"}}
+            - {"action":"show_created_layer","sourceActionIndex":0}
+            - {"action":"rename_layer","layerId":"lyr_out_001","name":"Thailand Boundary"}
 
             Output Requirements:
             - Your response must be a valid raw JSON string that can be parsed by json.loads
@@ -84,16 +100,7 @@ class OpManager(AgentBase[IAgentState]):
             {
                 "actions": [
                     {
-                        "action": <STRING - currently use "show_layer" for layer visibility command>,
-                        "artifact": <STRING - preferred single selector for layer to show>,
-                    },
-                    ...
-                ],
-                "outputs": [
-                    {
-                        "output_type": <GEOPARQUET, GEOTIFF, REPORTS, or CHARTS>,
-                        "description": <description of the output>,
-                        "path": <path to output file generated from your script>
+                        "action": <STRING - one of show_layer, create_layer_from_artifact, show_created_layer, rename_layer>,
                     },
                     ...
                 ],
@@ -133,6 +140,18 @@ class OpManager(AgentBase[IAgentState]):
             raise ValueError("LLM returned empty content without tool_calls")
 
         resp_js = parse_llm_json_object(content)
+        validated_actions, action_error = validate_op_actions(resp_js.get("actions"))
+        if action_error is not None:
+            # Guardrail: malformed action payload should not crash graph runtime.
+            # Convert to actionable decline for deterministic downstream behavior.
+            return {
+                "clarification_question": None,
+                "decline_message": f"Invalid OP action payload: {action_error}",
+                "code": None,
+                "actions": [],
+                "op_requires_tool_call": False,
+                "_messages": [response],
+            }
         code = resp_js.get("code")
         requires_tool_call = (
             isinstance(code, str)
@@ -143,8 +162,7 @@ class OpManager(AgentBase[IAgentState]):
             "clarification_question": resp_js.get("clarification_question"),
             "decline_message": resp_js.get("decline_message"),
             "code": code,
-            "outputs": resp_js.get("outputs"),
-            "actions": resp_js.get("actions"),
+            "actions": validated_actions,
             "op_requires_tool_call": requires_tool_call,
             "_messages": [response],
         }
