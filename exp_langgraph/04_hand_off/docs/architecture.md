@@ -25,7 +25,7 @@ The architecture has three main pieces:
 - Translate UI requests into graph/agent execution
 - Manage layer catalog and artifacts
 - Serve GIS artifacts from local filesystem (POC)
-- Emit structured events (`message`, `tool_start`, `layer_created`, etc.)
+- Emit structured events (`message`, `tool_start`, `layer_updated`, etc.)
 
 #### Agent Runtime (LangGraph + agents/tools)
 - Execute agent workflow (input retrieval, tool calls, output production)
@@ -258,16 +258,17 @@ POC note:
 }
 ```
 
-#### AgentEvent (SSE payload)
+#### AgentEvent (SSE payload, current actions path)
 
 ```json
 {
-  "type": "layer_created",
+  "type": "layer_updated",
   "runId": "run_456",
   "sessionId": "sess_123",
   "timestamp": "2026-05-13T12:10:20Z",
   "payload": {
-    "layerId": "lyr_out_001"
+    "layerId": "lyr_in_001",
+    "changed": { "visible": true }
   }
 }
 ```
@@ -303,11 +304,7 @@ Backend should emit these event types from `/api/runs/:runId/stream`:
 3. `tool_end`
 - Tool execution completed (success/failure summary)
 
-4. `layer_created`
-- A new map layer is available
-- UI should call `GET /api/layers/:layerId` and render it
-
-5. `layer_updated`
+4. `layer_updated`
 - Existing session layer metadata/state changed (`visible`, `opacity`, `style`, etc.)
 - UI should patch local layer state directly from payload (`layerId`, `changed`)
 - Emitted from:
@@ -316,15 +313,18 @@ Backend should emit these event types from `/api/runs/:runId/stream`:
   - `POST /api/sessions/:sessionId/layers/import`
   - Run-driven `show_layer` actions
 
-6. `clarification_required`
+5. `clarification_required`
 - Expected HITL interrupt (not failure) requiring user response.
 - Payload should include `interruptId` and `question`.
 
-7. `error`
+6. `error`
 - Recoverable/non-recoverable run errors
 
-8. `done`
+7. `done`
 - Run completed
+
+Legacy compatibility note:
+- `layer_created` was used by the old `outputs` flow and is not emitted by the current actions-only runtime path.
 
 #### SSE event examples
 
@@ -336,11 +336,6 @@ data: {"type":"message","runId":"run_456","sessionId":"sess_123","timestamp":"20
 ```text
 event: tool_start
 data: {"type":"tool_start","runId":"run_456","sessionId":"sess_123","timestamp":"2026-05-13T12:10:05Z","payload":{"tool":"analyze_slope","args":{"threshold":20}}}
-```
-
-```text
-event: layer_created
-data: {"type":"layer_created","runId":"run_456","sessionId":"sess_123","timestamp":"2026-05-13T12:10:20Z","payload":{"layerId":"lyr_out_001"}}
 ```
 
 ```text
@@ -633,15 +628,11 @@ Canonical OP response shape:
 {
   "actions": [
     {
-      "type": "show_existing_layer",
-      "catalogItemId": "cat_001"
+      "action": "show_layer",
+      "artifact": "cat_001"
     },
     {
-      "type": "show_existing_layer",
-      "layerId": "lyr_in_002"
-    },
-    {
-      "type": "create_layer_from_artifact",
+      "action": "create_layer_from_artifact",
       "artifact": {
         "path": "/data/random_points_2025.parquet",
         "format": "GEOPARQUET",
@@ -649,11 +640,11 @@ Canonical OP response shape:
       }
     },
     {
-      "type": "show_created_layer",
+      "action": "show_created_layer",
       "sourceActionIndex": 2
     },
     {
-      "type": "rename_layer",
+      "action": "rename_layer",
       "layerId": "lyr_out_101",
       "name": "Hotspots Near Major Roads (2025)"
     }
@@ -664,8 +655,8 @@ Canonical OP response shape:
 ```
 
 Required action semantics:
-1. `show_existing_layer`
-- Input: exactly one of `catalogItemId` or `layerId`.
+1. `show_layer`
+- Input: one artifact selector (catalog ID, artifact path, or resolved layer key by policy).
 - Effect: resolve/import if needed, then set `visible=true`.
 
 2. `create_layer_from_artifact`
@@ -681,13 +672,12 @@ Required action semantics:
 - Effect: update `LayerDescriptor.name`.
 
 Typical production scenarios for each action type:
-1. `show_existing_layer`
+1. `show_layer`
 - User asks to show a known dataset without computation.
 - Example prompts:
   - "Show hotspot layer for 2025."
   - "Turn on the rainfall layer for March."
-- OP should emit `show_existing_layer` targeting `catalogItemId` (or `layerId`
-  if already imported in session).
+- OP should emit `show_layer` with artifact selector for deterministic backend handling.
 
 2. `create_layer_from_artifact`
 - User asks for derived/generated data requiring code execution.
@@ -718,8 +708,8 @@ Run-processing contract:
 3. Resolve dependent actions (for example `show_created_layer`) by reading
    prior results from `sourceActionIndex`.
 4. Emit SSE for observed side effects:
-- `layer_created` for new layers
 - `layer_updated` for visibility/name/state changes
+- `layer_created` is reserved for future explicit create-action support (`create_layer_from_artifact`)
 5. If one action fails:
 - emit actionable run error payload with failing action index/type
 - stop or continue according to policy flag (default: stop for POC determinism)
@@ -731,42 +721,30 @@ Backend execution detail for dependent actions:
 4. Reject invalid references with actionable errors (no silent fallback).
 
 Validation rules:
-1. Unknown `type` => validation error (no silent ignore).
+1. Unknown `action` => validation error (no silent ignore).
 2. Missing required fields => validation error.
 3. Mutually-exclusive selectors (`catalogItemId` + `layerId`) => validation error.
 4. Idempotent calls should not create duplicate layers unnecessarily.
 
-### 2.7 `outputs` Deprecation Plan
+### 2.7 `outputs` Deprecation Status
 
-Phase 0 (current architecture decision):
-1. Document actions-only as target contract.
-2. Keep temporary compatibility gate for legacy `outputs`.
+Current status:
+1. Runtime is actions-only.
+2. Legacy non-empty `outputs` payload fails fast with explicit error.
+3. Active supported runtime action is `show_layer`.
 
-Phase 1 (implementation rollout):
-1. OP prompt/parsing emits `actions` only.
-2. Backend run processor prefers `actions`.
-3. Legacy `outputs` accepted only when compatibility flag is enabled.
-
-Phase 2 (cutover):
-1. Disable compatibility flag in default config.
-2. Legacy `outputs` payload returns explicit deprecation error.
-
-Phase 3 (cleanup):
-1. Remove legacy `outputs` code paths.
-2. Remove docs/examples referencing `outputs`.
-
-Cutover criteria:
-1. Action-only regression suite passes.
-2. No production/POC traffic observed relying on legacy `outputs`.
-3. UI flows (show/create/rename) stable under action-only responses.
+Next steps:
+1. Add remaining action handlers (`create_layer_from_artifact`, `show_created_layer`, `rename_layer`).
+2. Keep docs/tests aligned with actions-only behavior.
+3. Keep optional UI compatibility handling for `layer_created` until full migration is complete.
 
 ### 2.8 Scenario Traces (Actions-Only)
 
 Scenario A: Show existing catalog layer
 1. User asks: "Show hotspot 2025."
-2. OP returns `actions=[{"type":"show_existing_layer","catalogItemId":"cat_002"}]`.
+2. OP returns `actions=[{"action":"show_layer","artifact":"cat_002"}]`.
 3. Backend resolves/imports layer into session and sets visible.
-4. SSE emits `layer_created` (if imported) and/or `layer_updated`.
+4. SSE emits `layer_updated` when visibility/session layer state changes.
 5. UI updates layer panel + map.
 
 Scenario B: Create and show generated layer
@@ -775,7 +753,7 @@ Scenario B: Create and show generated layer
 - `create_layer_from_artifact`
 - `show_created_layer`
 3. Backend registers artifact, creates layer, normalizes source for rendering.
-4. SSE emits `layer_created`, then `layer_updated` visible=true.
+4. SSE emits `layer_updated` visible=true after show action is applied.
 5. UI fetches descriptor and renders on map.
 
 ---
@@ -808,8 +786,8 @@ Agent stack:
 4. UI calls `POST /api/sessions/:id/chat` and subscribes to SSE stream URL.
 5. Backend executes agent run in LangGraph.
 6. Backend emits incremental events (`message`, `tool_start`, `tool_end`).
-7. When output layer is produced, backend emits `layer_created`.
-8. UI fetches new layer descriptor and adds it to MapLibre.
+7. When an action mutates layer state, backend emits `layer_updated`.
+8. UI patches local state and/or refreshes session layers.
 9. User toggles visibility/style in Layer Panel; UI persists via `PATCH /api/layers/:id` (backend is source of truth).
 10. Backend emits `layer_updated`; UI patches layer state without full layer-list reload.
 10. If run emits `clarification_required`, UI captures `interruptId`, prompts user, and calls `POST /api/runs/:runId/resume` to continue the same run.
@@ -912,7 +890,7 @@ AppShell
 
 ### 5.3 UI Behavior Rules
 
-1. On `layer_created`, fetch layer descriptor and append to output group.
+1. On `layer_updated`, patch local state and/or refresh session layers.
 2. On `error`, show inline run error in chat and keep existing layers untouched.
 3. If SSE disconnects, show reconnect state and allow manual resume.
 
