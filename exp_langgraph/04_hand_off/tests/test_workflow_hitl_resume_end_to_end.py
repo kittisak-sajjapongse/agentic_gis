@@ -4,19 +4,18 @@ UI narrative:
 1. User submits a prompt from chat panel.
 2. Run stream emits `clarification_required`; UI displays question and waits.
 3. User answers clarification in chat panel; UI calls resume endpoint.
-4. Resumed stream emits `layer_created` + `done`.
+4. Resumed stream emits `layer_updated` + `done`.
 5. UI reloads session layers and map can show the generated layer.
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
-from pathlib import Path
 
 import api.run_service as run_service_module
 from api.layer_service import LayerService
 from api.run_service import RunService
+from domain.state_models import LayerDescriptor, LayerSource, LayerStyle
 from tools.artifact_provider import LocalArtifactProvider
 
 
@@ -53,13 +52,12 @@ class _FakeStateInterrupt:
 
 
 class _FakeStateDoneWithOutput:
-    def __init__(self, output_path: str):
+    def __init__(self):
         self.values = {
-            "outputs": [
+            "actions": [
                 {
-                    "output_type": "GEOJSON",
-                    "description": "Layer after clarification",
-                    "path": output_path,
+                    "action": "show_layer",
+                    "artifact": "cat_001",
                 }
             ]
         }
@@ -67,9 +65,8 @@ class _FakeStateDoneWithOutput:
 
 
 class _FakeGraphHitl:
-    def __init__(self, output_path: str):
+    def __init__(self):
         self._calls = 0
-        self._output_path = output_path
 
     async def astream(self, inputs, config=None):
         self._calls += 1
@@ -79,29 +76,42 @@ class _FakeGraphHitl:
     async def aget_state(self, config=None):
         if self._calls == 1:
             return _FakeStateInterrupt()
-        return _FakeStateDoneWithOutput(self._output_path)
+        return _FakeStateDoneWithOutput()
 
 
-def _fake_builder_factory(output_path: str):
+def _fake_builder_factory():
     async def _build():
-        return _FakeGraphHitl(output_path)
+        return _FakeGraphHitl()
 
     return _build
 
 
 def test_workflow_hitl_resume_end_to_end() -> None:
     async def _run() -> None:
-        output_file = Path("data/test_hitl_workflow_output.geojson")
-        output_file.write_text(
-            json.dumps({"type": "FeatureCollection", "features": []}),
-            encoding="utf-8",
-        )
         original_builder = run_service_module.build_main_graph
-        run_service_module.build_main_graph = _fake_builder_factory(str(output_file))
+        run_service_module.build_main_graph = _fake_builder_factory()
         try:
             rs = _SSEEventCollector()
             ls = LayerService()
             ap = LocalArtifactProvider()
+
+            class _MockLayerShowService:
+                def __init__(self) -> None:
+                    self.calls: list[tuple[str, str | None]] = []
+
+                def show_layer(self, session_id: str, *, artifact=None, catalog_item_id=None, layer_id=None):
+                    self.calls.append((session_id, artifact))
+                    return LayerDescriptor(
+                        id="lyr_stub_hitl_1",
+                        name="Stub HITL Layer",
+                        kind="geojson",
+                        source=LayerSource(type="geojson", url="/api/artifacts/stub/content"),
+                        style=LayerStyle(preset="line-default"),
+                        visible=True,
+                        origin="input",
+                        createdAt="2026-01-01T00:00:00Z",
+                    )
+            action_service = _MockLayerShowService()
 
             session_id = "sess_workflow_hitl"
             ls.init_session(session_id)
@@ -128,6 +138,7 @@ def test_workflow_hitl_resume_end_to_end() -> None:
                     message="Create random points layer",
                     layer_service=ls,
                     artifact_provider=ap,
+                    layer_show_service=action_service,
                 )
             )
             first_events = await first_events_task
@@ -145,23 +156,18 @@ def test_workflow_hitl_resume_end_to_end() -> None:
                 answer="Use March",
                 layer_service=ls,
                 artifact_provider=ap,
+                layer_show_service=action_service,
             )
 
             # Reconnect stream after resume and observe terminal catch-up.
             second_events = await _collect_until(run.runId, {"done", "error"})
 
             status2 = rs.get_run(run.runId)
-            layers = ls.list_layers(session_id)
             assert status2 is not None and status2.status == "completed"
-            # Explicitly assert resume path emitted layer_created event from
-            # RunService internals, independent of subscriber timing.
-            assert "layer_created" in rs.emitted_types
+            assert action_service.calls == [(session_id, "cat_001")]
             assert "done" in second_events
-            assert len(layers) == 1
-            assert layers[0].origin == "agent_output"
+            assert "layer_updated" in rs.emitted_types
         finally:
             run_service_module.build_main_graph = original_builder
-            if output_file.exists():
-                output_file.unlink()
 
     asyncio.run(_run())
